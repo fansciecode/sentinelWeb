@@ -98,7 +98,7 @@ export interface SessionID {
     readonly SessionObj: SentSession;
 }
 export declare enum TransactionKind {
-    sentinel = '',
+    // sentinel = '',
     Send = 0,
     SetName = 1,
     SwapOffer = 2,
@@ -106,25 +106,25 @@ export declare enum TransactionKind {
     SwapClaim = 4,
     SwapTimeout = 5
 }
-export interface RegVpnTx extends BaseTx {
-    readonly kind: TransactionKind.sentinel;
-    readonly VpnDetails: RegisterVpn;
-}
-export interface RegMastNodeTx extends BaseTx {
-    readonly kind: TransactionKind.sentinel;
-    readonly NodeDetails: RegisterMasterNode;
-}
+// export interface RegVpnTx extends BaseTx {
+//     readonly kind: TransactionKind.sentinel;
+//     readonly VpnDetails: RegisterVpn;
+// }
+// export interface RegMastNodeTx extends BaseTx {
+//     readonly kind: TransactionKind.sentinel;
+//     readonly NodeDetails: RegisterMasterNode;
+// }
 
-export interface PayVpnServiceTx extends BaseTx {
-    readonly recipient: RecipientId;
-    readonly kind: TransactionKind.Send;
-    readonly PayType: PayVpnService;
-}
-export interface RefundTx extends BaseTx {
-    readonly recipient: RecipientId;
-    readonly kind: TransactionKind.sentinel;
-    readonly RefundType: Refund;
-}
+// export interface PayVpnServiceTx extends BaseTx {
+//     readonly recipient: RecipientId;
+//     readonly kind: TransactionKind.Send;
+//     readonly PayType: PayVpnService;
+// }
+// export interface RefundTx extends BaseTx {
+//     readonly recipient: RecipientId;
+//     readonly kind: TransactionKind.sentinel;
+//     readonly RefundType: Refund;
+// }
 export interface BaseTx {
     readonly chainId: ChainId;
     readonly fee?: FungibleToken;
@@ -165,10 +165,10 @@ export interface SwapTimeoutTx extends BaseTx {
     readonly swapId: SwapIdBytes;
 }
 export declare type UnsignedTransaction =
-    | RegVpnTx
-    | RegMastNodeTx
-    | PayVpnServiceTx
-    | RefundTx
+    // | RegVpnTx
+    // | RegMastNodeTx
+    // | PayVpnServiceTx
+    // | RefundTx
     | SendTx
     | SetNameTx
     | SwapOfferTx

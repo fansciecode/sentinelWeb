@@ -679,6 +679,8 @@ export namespace cash {
   interface ISet {
     /** Set coins */
     coins?: x.ICoin[] | null;
+    msgData ?:x.ImsgData[] |null;
+
   }
 
   /** Represents a Set. */
@@ -691,6 +693,11 @@ export namespace cash {
 
     /** Set coins. */
     public coins: x.ICoin[];
+
+    //** sentinel MsgData  */
+
+    public msgData:x.ImsgData[] |null;
+
 
     /**
      * Creates a new Set instance using the specified properties.
@@ -781,8 +788,9 @@ export namespace cash {
     /** SendMsg ref */
     ref?: Uint8Array | null;
 
-    /**sentinel MsgData */
-    MsgData?:Uint8Array;
+    //**Sentinel Msgdata */
+    msgData ?: Uint8Array|null;
+
   }
 
   /** Represents a SendMsg. */
@@ -808,8 +816,10 @@ export namespace cash {
     /** SendMsg ref. */
     public ref: Uint8Array;
 
-    /**sentinel MsgData */
-    public MsgData?:Uint8Array;
+    //** sentinel Msgdata */
+    public msgData :Uint8Array;
+
+
 
     /**
      * Creates a new SendMsg instance using the specified properties.
@@ -998,6 +1008,7 @@ export namespace x {
 
     /** Coin issuer */
     issuer?: string | null;
+
   }
 
   /** Represents a Coin. */
@@ -1019,6 +1030,7 @@ export namespace x {
 
     /** Coin issuer. */
     public issuer: string;
+
 
     /**
      * Creates a new Coin instance using the specified properties.
@@ -1086,6 +1098,88 @@ export namespace x {
 
     /**
      * Converts this Coin to JSON.
+     * @returns JSON object
+     */
+    public toJSON(): { [k: string]: any };
+  }
+
+  /** sentinel implimentation  */
+
+  interface ImsgData {
+
+    msgData?: Uint8Array | null;
+
+  }
+  class MsgData implements ImsgData {
+
+    constructor(properties?: x.ImsgData);
+
+    public msgData :Uint8Array|null;
+
+    public static create(properties?:x.ImsgData ): x.MsgData;
+
+    /**
+     * Encodes the specified ResultSet message. Does not implicitly {@link app.ResultSet.verify|verify} messages.
+     * @param message ResultSet message or plain object to encode
+     * @param [writer] Writer to encode to
+     * @returns Writer
+     */
+    public static encode(message: x.ImsgData, writer?: $protobuf.Writer): $protobuf.Writer;
+
+    /**
+     * Encodes the specified ResultSet message, length delimited. Does not implicitly {@link app.ResultSet.verify|verify} messages.
+     * @param message ResultSet message or plain object to encode
+     * @param [writer] Writer to encode to
+     * @returns Writer
+     */
+    public static encodeDelimited(message: x.ImsgData, writer?: $protobuf.Writer): $protobuf.Writer;
+
+    /**
+     * Decodes a ResultSet message from the specified reader or buffer.
+     * @param reader Reader or buffer to decode from
+     * @param [length] Message length if known beforehand
+     * @returns ResultSet
+     * @throws {Error} If the payload is not a reader or valid buffer
+     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+     */
+    public static decode(reader: $protobuf.Reader | Uint8Array, length?: number): x.MsgData;
+
+    /**
+     * Decodes a ResultSet message from the specified reader or buffer, length delimited.
+     * @param reader Reader or buffer to decode from
+     * @returns ResultSet
+     * @throws {Error} If the payload is not a reader or valid buffer
+     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+     */
+    public static decodeDelimited(reader: $protobuf.Reader | Uint8Array): x.MsgData;
+
+    /**
+     * Verifies a ResultSet message.
+     * @param message Plain object to verify
+     * @returns `null` if valid, otherwise the reason why it is not
+     */
+    public static verify(message: { [k: string]: any }): string | null;
+
+    /**
+     * Creates a ResultSet message from a plain object. Also converts values to their respective internal types.
+     * @param object Plain object
+     * @returns ResultSet
+     */
+    public static fromObject(object: { [k: string]: any }): x.MsgData;
+
+    /**
+     * Creates a plain object from a ResultSet message. Also converts values to other types if specified.
+     * @param message ResultSet
+     * @param [options] Conversion options
+     * @returns Plain object
+     */
+    public static toObject(
+      message: x.MsgData,
+      options?: $protobuf.IConversionOptions,
+    ): { [k: string]: any };
+
+    /**
+     * Converts this ResultSet to JSON.
      * @returns JSON object
      */
     public toJSON(): { [k: string]: any };

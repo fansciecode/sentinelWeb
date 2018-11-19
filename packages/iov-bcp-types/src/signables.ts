@@ -2,7 +2,7 @@ import { As } from "type-tagger";
 
 import { ChainId, PostableBytes, PublicKeyBundle, SignatureBytes } from "@iov/tendermint-types";
 
-import { Nonce, UnsignedTransaction, FungibleToken, SentSession } from "./transactions";
+import { Nonce, UnsignedTransaction, FungibleToken, SessionID } from "./transactions";
 
 export type TransactionIdBytes = Uint8Array & As<"transaction-id">;
 
@@ -32,7 +32,7 @@ export interface FullSignature {
 //Sentinel client signature type 
 export interface ClientSignature extends FullSignature {
 readonly Coins :FungibleToken;
-readonly SessionId :ByteString;
+readonly SessionId :SessionID;
 readonly counter :number;
 readonly isfinal :1;
 }

@@ -28,6 +28,17 @@ export interface FungibleToken {
   readonly tokenTicker: TokenTicker;
 }
 // sentinel message type declaration 
+// export enum SentinelMsgType {
+//   RegisterVpn,
+//   DeleteVpnUser,
+//   RegisterMasterNode,
+//   DeleteMasterNode,
+//   PayVpnService,
+//   GetVpnPayment,
+//   Refund,
+//   SignToVpn
+
+// }
 export interface RegisterVpn {
   readonly Ip: string;
   readonly UploadSpeed: number;
@@ -73,11 +84,11 @@ export interface PayVpnService {
 }
 export interface GetVpnPayment {
   readonly coins: FungibleToken;
-  readonly SessionId: number;
+  readonly SessionId: SessionID;
   readonly Counter: number;
   readonly Localaccount: string;
   readonly Gas: number;
-  readonly IsFinal: 0;
+  readonly IsFinal: 1;
   readonly Password: string;
   readonly Signature: string;
 }
@@ -102,11 +113,11 @@ export interface SentSession {
   readonly VpnPubKey: PublicKeyBundle;
   readonly CPubKey: PublicKeyBundle;
   readonly CAddress: Address;
-  readonly status: 0;
+  readonly status: 1;
 
 }
 export const SessionId = (SessionObj: SentSession): string => {
-  return SessionObj.Counter + SessionObj.CPubKey;
+  return SessionObj.Counter + SessionObj.CAddress;
 }
 
 export interface SessionID {
@@ -114,7 +125,7 @@ export interface SessionID {
   readonly SessionObj: SentSession;
 }
 export enum TransactionKind {
-  Sentinel,
+  // Sentinel,
   Send,
   SetName,
   SwapOffer,
@@ -131,32 +142,33 @@ export interface BaseTx {
 }
 //Sentinel trasnaction kind 
 
-export interface RegVpnTx extends BaseTx {
-  readonly recipient: RecipientId;
-  readonly kind: TransactionKind.Sentinel;
-  readonly VpnDetails: RegisterVpn;
-}
-export interface RegMastNodeTx extends BaseTx {
-  readonly recipient: RecipientId;
-  readonly kind: TransactionKind.Sentinel;
-  readonly NodeDetails: RegisterMasterNode;
-}
+// export interface RegVpnTx extends BaseTx {
+//   readonly recipient: RecipientId;
+//   readonly kind: TransactionKind.Sentinel;
+//   readonly VpnDetails: RegisterVpn;
+// }
+// export interface RegMastNodeTx extends BaseTx {
+//   readonly recipient: RecipientId;
+//   readonly kind: TransactionKind.Sentinel;
+//   readonly NodeDetails: RegisterMasterNode;
+// }
 
-export interface PayVpnServiceTx extends BaseTx {
-  readonly recipient: RecipientId;
-  readonly kind: TransactionKind.Send;
-  readonly PayType: PayVpnService;
-}
-export interface RefundTx extends BaseTx {
-  readonly recipient: RecipientId;
-  readonly kind: TransactionKind.Sentinel;
-  readonly RefundType: Refund;
-}
+// export interface PayVpnServiceTx extends BaseTx {
+//   readonly recipient: RecipientId;
+//   readonly kind: TransactionKind.Send;
+//   readonly PayType: PayVpnService;
+// }
+// export interface RefundTx extends BaseTx {
+//   readonly recipient: RecipientId;
+//   readonly kind: TransactionKind.Sentinel;
+//   readonly RefundType: Refund;
+// }
 
 export interface SendTx extends BaseTx {
   readonly kind: TransactionKind.Send;
-  readonly amount: FungibleToken;
+  readonly amount?: FungibleToken|null;
   readonly recipient: RecipientId;
+  readonly msgType?: RegisterVpn | DeleteVpnUser | RegisterMasterNode | DeleteMasterNode | PayVpnService | GetVpnPayment | Refund | SignToVpn|null;
   readonly memo?: string;
 }
 
@@ -194,10 +206,6 @@ export interface SwapTimeoutTx extends BaseTx {
 }
 
 export type UnsignedTransaction =
-  | RegVpnTx
-  | RegMastNodeTx
-  | RefundTx
-  | PayVpnServiceTx
   | SendTx
   | SetNameTx
   | SwapOfferTx

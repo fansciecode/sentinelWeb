@@ -1,6 +1,6 @@
 import { As } from "type-tagger";
 import { ChainId, PostableBytes, PublicKeyBundle, SignatureBytes } from "@iov/tendermint-types";
-import { Nonce, UnsignedTransaction } from "./transactions";
+import { Nonce, UnsignedTransaction, SessionID } from "./transactions";
 export declare type TransactionIdBytes = Uint8Array & As<"transaction-id">;
 export declare type SignableBytes = Uint8Array & As<"signable">;
 export declare enum PrehashType {
@@ -15,7 +15,7 @@ export interface SigningJob {
 //Sentinel client signature type 
 export interface ClientSignature extends FullSignature {
 // readonly Coins :FungibleToken;
-readonly SessionId :ByteString;
+readonly SessionId :SessionID;
 readonly counter :number;
 readonly isfinal :1;
 }

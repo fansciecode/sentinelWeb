@@ -59,7 +59,8 @@ const parseSendTx = (base: BaseTx, msg: codecImpl.cash.ISendMsg): SendTx => ({
   //    src: await keyToAddress(tx.signer),
   kind: TransactionKind.Send,
   recipient: ensure(msg.dest, "recipient") as Address,
-  amount: decodeToken(ensure(msg.amount)),
+  //amount: decodeToken(ensure(msg.amount)),
+  msgType:msg.msgData,
   memo: msg.memo || undefined,
   ...base,
 });
