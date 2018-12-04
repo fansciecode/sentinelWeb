@@ -28,24 +28,23 @@ export interface FungibleToken {
   readonly tokenTicker: TokenTicker;
 }
 // sentinel message type declaration 
-// export enum SentinelMsgType {
-//   RegisterVpn,
-//   DeleteVpnUser,
-//   RegisterMasterNode,
-//   DeleteMasterNode,
-//   PayVpnService,
-//   GetVpnPayment,
-//   Refund,
-//   SignToVpn
+export type SentinelMsgType =
+  |RegisterVpn
+  | DeleteVpnUser
+  | RegisterMasterNode
+  | DeleteMasterNode
+  | PayVpnService
+  | GetVpnPayment
+  | Refund
+  | SignToVpn
 
-// }
 export interface RegisterVpn {
   readonly Ip: string;
   readonly UploadSpeed: number;
   readonly PricePerGb: FungibleToken;
   readonly EncryptionMethod: string;
-  readonly Latitude: number;
-  readonly Longitude: number;
+  readonly Latitude: string;
+  readonly Longitude: string;
   readonly City: string;
   readonly Country: string;
   readonly NodeType: string;
@@ -84,24 +83,24 @@ export interface PayVpnService {
 }
 export interface GetVpnPayment {
   readonly coins: FungibleToken;
-  readonly SessionId: SessionID;
+  readonly SessionId: string;
   readonly Counter: number;
   readonly Localaccount: string;
   readonly Gas: number;
-  readonly IsFinal: 1;
+  readonly IsFinal: 0 | 1;
   readonly Password: string;
   readonly Signature: string;
 }
 export interface Refund {
   readonly name: string;
   readonly password: string;
-  readonly SessionId: SessionID;
+  readonly SessionId: string;
   readonly gas: number;
 }
 export interface SignToVpn {
   readonly coins: FungibleToken;
   readonly address: RecipientId;
-  readonly SessionId: SessionID;
+  readonly SessionId: string;
   readonly from: Address;
 
 }
@@ -113,17 +112,17 @@ export interface SentSession {
   readonly VpnPubKey: PublicKeyBundle;
   readonly CPubKey: PublicKeyBundle;
   readonly CAddress: Address;
-  readonly status: 1;
+  readonly status: 0 | 1;
 
 }
-export const SessionId = (SessionObj: SentSession): string => {
+export const SessionID = (SessionObj: SentSession): string => {
   return SessionObj.Counter + SessionObj.CAddress;
 }
 
-export interface SessionID {
-  readonly Sessionid: string;
-  readonly SessionObj: SentSession;
-}
+// export interface SessionID {
+//   readonly Sessionid: SessionId;
+//   readonly SessionObj: SentSession;
+// }
 export enum TransactionKind {
   // Sentinel,
   Send,
@@ -166,9 +165,9 @@ export interface BaseTx {
 
 export interface SendTx extends BaseTx {
   readonly kind: TransactionKind.Send;
-  readonly amount?: FungibleToken|null;
+  readonly amount?: FungibleToken | null;
   readonly recipient: RecipientId;
-  readonly msgType?: RegisterVpn | DeleteVpnUser | RegisterMasterNode | DeleteMasterNode | PayVpnService | GetVpnPayment | Refund | SignToVpn|null;
+  readonly msgType?: RegisterVpn | DeleteVpnUser | RegisterMasterNode | DeleteMasterNode | PayVpnService | GetVpnPayment | Refund | SignToVpn | null;
   readonly memo?: string;
 }
 

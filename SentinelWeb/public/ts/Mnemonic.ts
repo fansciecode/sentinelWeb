@@ -1,6 +1,6 @@
 import { Bip39, Random } from '@iov/crypto';
 
-import * as mnemonic from  "./Mnemonic";
+
 
 export const Phrase12 = async () => {
     const entropy16 = await Random.getBytes(16);
