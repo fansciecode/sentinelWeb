@@ -121,20 +121,18 @@ export const BuildTransaction: SentinelMsgType = (TrType: SentinelMsgType, ...pa
 };
 
 
-export const SendTransaction = (Recipient: Address, memo: string, Amount?: FungibleToken, msg?: SentinelMsgType) => {
+export const SendTransaction = (Recipient: Address, memo: string, Amount?: FungibleToken, msg?: SentinelMsgType,msgtype?:SentinelMsgType) => {
   const sendTx: SendTx = {
     kind: TransactionKind.Send,
     chainId: chainId,
     signer: signer,
     recipient: Recipient,
     memo: memo,
-    msgType: msg || null,
+    msgType: BuildTransaction(msgtype,msg) || null,
     amount: {
       whole: Amount.whole,
       fractional: Amount.fraction,
       tokenTicker: Amount.ticker as TokenTicker,
     } || null
   };
-
-
 };

@@ -1,7 +1,6 @@
 import { Encoding, HdPaths } from '@iov/encoding';
 import { Ed25519HdWallet, UserProfile } from '@iov/keycontrol';
 import * as mnemonic from "./Mnemonic";
-// import { Profile } from "./Profile"
 import { db } from "./Store";
 const { fromHex, toHex } = Encoding;
 
@@ -10,12 +9,12 @@ export const Profile =  new UserProfile();
 export const CreateIdentityInWallet112 = async (profile:any,i: number) => {
    const identity12 = await profile.createIdentity(profile.wallet1.id, HdPaths.simpleAddress(i));
    return identity12;
-}
+};
 
 export const CreateIdentityInWalle124 = async (profile:any,i: number) => {
    const identity24 = await profile.createIdentity(profile.wallet1.id, HdPaths.simpleAddress(i));
    return identity24;
-}
+};
 
 export const CreateWallet = async (password: string, Mnemonic: number) => {
 
@@ -33,5 +32,5 @@ export const CreateWallet = async (password: string, Mnemonic: number) => {
       Profile: Profile,
       id1: identity12,
       id2: identity24
-   }
-}
+   };
+};
