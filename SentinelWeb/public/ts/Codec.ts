@@ -1,5 +1,6 @@
 import { bnsCodec } from '@iov/bns';
-import {signer} from "./Network"
+import {Profile}from "./Wallet"
+
 // import * as wallet from  "./Wallet"
 
-const addr = bnsCodec.keyToAddress();
+export const address = bnsCodec.keyToAddress(Profile.wallet.id1.pubkey);

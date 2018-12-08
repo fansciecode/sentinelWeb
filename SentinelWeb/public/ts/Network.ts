@@ -6,7 +6,7 @@ export const signer = () => {
     const Signer = new MultiChainSigner(Profile);
     AddChain(Signer);
     return {
-        sigNer :Signer,
+        Signer :Signer,
         ChainiD :Signer.chainIds()[0]
     };
 };

@@ -15,8 +15,12 @@ import {
   TokenTicker,
   TransactionKind
 } from "@iov/bcp-types";
+import {address}from "./Codec";
+import{Profile} from "./Wallet";
 
 import { chainId, signer } from "./Network";
+
+
 
 
 export const DeleteMasternode: DeleteMasterNode = (...data: any) => {
@@ -121,7 +125,7 @@ export const BuildTransaction: SentinelMsgType = (TrType: SentinelMsgType, ...pa
 };
 
 
-export const SendTransaction = (Recipient: Address, memo: string, Amount?: FungibleToken, msg?: SentinelMsgType,msgtype?:SentinelMsgType) => {
+export const SendTransaction = async  (Recipient: Address, memo: string, Amount?: FungibleToken, msg?: SentinelMsgType,msgtype?:SentinelMsgType) => {
   const sendTx: SendTx = {
     kind: TransactionKind.Send,
     chainId: chainId,
@@ -134,5 +138,10 @@ export const SendTransaction = (Recipient: Address, memo: string, Amount?: Fungi
       fractional: Amount.fraction,
       tokenTicker: Amount.ticker as TokenTicker,
     } || null
+
   };
+  console.log(await signer().Signer.getNonce(chainId, address));
+  await signer().Signer.signAndPost(sendTx, Profile.wallet1.id);
+  console.log(await signer().Signer.getNonce(chainId, address));
+
 };
