@@ -27,16 +27,26 @@ export interface FungibleToken {
   readonly fractional: number;
   readonly tokenTicker: TokenTicker;
 }
-// sentinel message type declaration 
-export type SentinelMsgType =
-  |RegisterVpn
-  | DeleteVpnUser
-  | RegisterMasterNode
-  | DeleteMasterNode
-  | PayVpnService
-  | GetVpnPayment
-  | Refund
-  | SignToVpn
+// sentinel message type declaration
+// export type SentinelMsgType =
+//   | RegisterVpn
+//   | DeleteVpnUser
+//   | RegisterMasterNode
+//   | DeleteMasterNode
+//   | PayVpnService
+//   | GetVpnPayment
+//   | Refund
+//   | SignToVpn;
+export enum SentinelMsgType {
+  RegisterVpn ,
+  DeleteVpnUser  ,
+  RegisterMasterNode,
+  DeleteMasterNode,
+  PayVpnService,
+  GetVpnPayment,
+  Refund ,
+  SignToVpn 
+}
 
 export interface RegisterVpn {
   readonly Ip: string;
@@ -102,7 +112,6 @@ export interface SignToVpn {
   readonly address: RecipientId;
   readonly SessionId: string;
   readonly from: Address;
-
 }
 export interface SentSession {
   readonly LockedCoins: FungibleToken;
@@ -113,11 +122,10 @@ export interface SentSession {
   readonly CPubKey: PublicKeyBundle;
   readonly CAddress: Address;
   readonly status: 0 | 1;
-
 }
 export const SessionID = (SessionObj: SentSession): string => {
-  return SessionObj.Counter + SessionObj.CAddress;
-}
+  return SessionObj.Counter.toString() + SessionObj.CAddress.toString();
+};
 
 // export interface SessionID {
 //   readonly Sessionid: SessionId;
@@ -139,7 +147,7 @@ export interface BaseTx {
   readonly signer: PublicKeyBundle;
   readonly ttl?: TtlBytes;
 }
-//Sentinel trasnaction kind 
+//Sentinel trasnaction kind
 
 // export interface RegVpnTx extends BaseTx {
 //   readonly recipient: RecipientId;
@@ -167,10 +175,9 @@ export interface SendTx extends BaseTx {
   readonly kind: TransactionKind.Send;
   readonly amount?: FungibleToken | null;
   readonly recipient: RecipientId;
-  readonly msgType?: RegisterVpn | DeleteVpnUser | RegisterMasterNode | DeleteMasterNode | PayVpnService | GetVpnPayment | Refund | SignToVpn | null;
+  readonly msgType?: SentinelMsgType;
   readonly memo?: string;
 }
-
 
 export interface SetNameTx extends BaseTx {
   readonly kind: TransactionKind.SetName;

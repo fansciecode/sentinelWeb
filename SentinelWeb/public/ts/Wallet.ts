@@ -16,7 +16,7 @@ export const CreateIdentityInWalle124 = async (profile:any,i: number) => {
    return identity24;
 };
 
-export const WALLET = async (password: string, Mnemonic: number) => {
+export const CreateWallet = async (password: string, Mnemonic: number) => {
 
    const wallet1 = Ed25519HdWallet.fromMnemonic(mnemonic.Phrase12);
    const wallet2 = Ed25519HdWallet.fromMnemonic(mnemonic.Phrase24);

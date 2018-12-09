@@ -13,6 +13,27 @@ export interface FungibleToken {
     readonly fractional: number;
     readonly tokenTicker: TokenTicker;
 }
+// export type SentinelMsgType =
+//   | RegisterVpn
+//   | DeleteVpnUser
+//   | RegisterMasterNode
+//   | DeleteMasterNode
+//   | PayVpnService
+//   | GetVpnPayment
+//   | Refund
+//   | SignToVpn;
+
+  export enum SentinelMsgType {
+    RegisterVpn =0,
+    DeleteVpnUser = 1,
+    RegisterMasterNode =2,
+    DeleteMasterNode =3,
+    PayVpnService =4,
+    GetVpnPayment =5,
+    Refund =7,
+    SignToVpn =6
+  }
+  
 // sentinel message type declaration 
 export interface RegisterVpn {
     readonly Ip: string;
@@ -84,7 +105,7 @@ export interface SentSession {
     readonly LockedCoins: FungibleToken;
     readonly ReleasedCoins: FungibleToken;
     readonly Counter: number;
-    readonly Timestamp: string;
+    readonly Timestamp: Date;
     readonly VpnPubKey: PublicKeyBundle;
     readonly CPubKey: PublicKeyBundle;
     readonly CAddress: Address;

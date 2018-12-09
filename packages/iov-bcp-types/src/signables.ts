@@ -29,12 +29,12 @@ export interface FullSignature {
   readonly signature: SignatureBytes;
 }
 
-//Sentinel client signature type 
+//Sentinel client signature type
 export interface ClientSignature extends FullSignature {
-readonly Coins :FungibleToken;
-readonly SessionId :SessionID;
-readonly counter :number;
-readonly isfinal :1;
+  readonly Coins: FungibleToken;
+  readonly SessionId: SessionID;
+  readonly counter: number;
+  readonly isfinal: 1;
 }
 // A signable transaction knows how to serialize itself
 // and how to store signatures
