@@ -1,7 +1,7 @@
 
-import { Encoding, HdPaths } from '@iov/encoding';
+import { Encoding } from '@iov/encoding';
 
-import { Ed25519HdWallet, UserProfile } from '@iov/keycontrol';
+import { Ed25519HdWallet,HdPaths , UserProfile } from '@iov/keycontrol';
 
 import { db } from "./Store";
 
