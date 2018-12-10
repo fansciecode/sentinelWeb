@@ -121,22 +121,6 @@ export const BuildTransaction = (TrType: SentinelMsgType, params:any) => {
   }else if (TrType === SentinelMsgType.RegisterVpn ) {
     GetVpnpayment(params);
    }
-  // switch (TrType) {
-  //   case DeleteMasterNode:
-  //     return DeleteMasternode(params);
-  //   case DeleteVpnUser:
-  //     return DeleteVpnuser(params);
-  //   case GetVpnPayment:
-  //     return GetVpnpayment(params);
-  //   case PayVpnService:
-  //     return PayVpnservice(params);
-  //   case RegisterMasterNode:
-  //     return RegistermasterNode(params);
-  //   case RegisterVpn:
-  //     return Registervpn(params);
-
-  // };
-
 };
 
 
