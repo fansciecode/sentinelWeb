@@ -69,7 +69,7 @@ export enum SentinelMsgType {
 export interface RegisterVpn {
   readonly Ip: string;
   readonly UploadSpeed: number;
-  readonly PricePerGb: FungibleToken;
+  readonly PricePerGb: Amount;
   readonly EncryptionMethod: string;
   readonly Latitude: string;
   readonly Longitude: string;
@@ -81,6 +81,68 @@ export interface RegisterVpn {
   readonly Password: string;
   readonly Gas: number;
 }
+export interface DeleteVpnUser {
+  readonly address: Address;
+  readonly name: string;
+  readonly password: string;
+  readonly gas: number;
+}
+
+export interface RegisterMasterNode {
+  readonly name: string;
+  readonly gas: number;
+  readonly password: string;
+}
+export interface DeleteMasterNode {
+  readonly address: Address;
+  readonly name: string;
+  readonly password: string;
+  readonly gas: number;
+}
+export interface PayVpnService {
+  readonly coins: Amount;
+  readonly Vpnaddr: Address;
+  readonly Localaccount: string;
+  readonly password: string;
+  readonly gas: number;
+  readonly SigName: string;
+  readonly SigPassword: string;
+}
+export interface GetVpnPayment {
+  readonly coins: Amount;
+  readonly SessionId: string;
+  readonly Counter: number;
+  readonly Localaccount: string;
+  readonly Gas: number;
+  readonly IsFinal: 0 | 1;
+  readonly Password: string;
+  readonly Signature: string;
+}
+export interface Refund {
+  readonly name: string;
+  readonly password: string;
+  readonly SessionId: string;
+  readonly gas: number;
+}
+export interface SignToVpn {
+  readonly coins: Amount;
+  readonly address: RecipientId;
+  readonly SessionId: string;
+  readonly from: Address;
+}
+export interface SentSession {
+  readonly LockedCoins: Amount;
+  readonly ReleasedCoins: Amount;
+  readonly Counter: number;
+  readonly Timestamp: string;
+  readonly VpnPubKey: PublicKeyBundle;
+  readonly CPubKey: PublicKeyBundle;
+  readonly CAddress: Address;
+  readonly status: 0 | 1;
+}
+export const SessionID = (SessionObj: SentSession): string => {
+  return SessionObj.Counter.toString() + SessionObj.CAddress.toString();
+};
 
 export interface ChainAddressPair {
   readonly chainId: ChainId;
@@ -143,9 +205,9 @@ export interface AddAddressToUsernameTx extends BaseTx {
 
 export interface SendTx extends BaseTx {
   readonly kind: TransactionKind.Send;
-  readonly amount: Amount;
+  readonly amount ?: Amount |null;
   readonly recipient: RecipientId;
-  readonly msgType?: SentinelMsgType;
+  readonly msgType?: SentinelMsgType |null;
   readonly memo?: string;
 }
 

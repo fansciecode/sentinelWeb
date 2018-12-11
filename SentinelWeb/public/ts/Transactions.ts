@@ -1,9 +1,10 @@
 
 import {
   Address,
+  Amount,
   DeleteMasterNode,
   DeleteVpnUser,
-  FungibleToken,
+  // FungibleToken,
   GetVpnPayment,
   PayVpnService,
   RegisterMasterNode,
@@ -13,7 +14,8 @@ import {
   SentSession,
   // SessionID,
   TokenTicker,
-  TransactionKind
+  TransactionKind,
+
 } from "@iov/bcp-types";
 import {address}from "./Codec";
 // import{Profile} from "./Wallet";
@@ -44,7 +46,7 @@ export const SessionObj  = (data: SentSession):SentSession => {
     LockedCoins: data.LockedCoins,
     ReleasedCoins: data.ReleasedCoins,
     Counter: data.Counter,
-    Timestamp: new Date(),
+    Timestamp: new Date().toDateString(),
     VpnPubKey: data.VpnPubKey,
     CPubKey: data.CPubKey,
     CAddress: data.CAddress,
@@ -106,12 +108,15 @@ export const Registervpn  = (data:RegisterVpn ):RegisterVpn => {
     Gas: data.Gas
   };
 };
-export const BuildTransaction = (TrType: SentinelMsgType, params:any) => {
+export const BuildTransaction = (TrType: SentinelMsgType, params:any):any => {
+// switch(TrType) {
+//   case TrType.DeleteMasterNode :
 
+// }
   if( TrType === SentinelMsgType.DeleteMasterNode ) {
-    DeleteMasternode(params);
+     DeleteMasternode(params);
   }else if (TrType === SentinelMsgType.DeleteVpnUser ) {
-    GetVpnpayment(params);
+     GetVpnpayment(params);
   }else if (TrType === SentinelMsgType.GetVpnPayment ) {
      GetVpnpayment(params);
   }else if (TrType === SentinelMsgType.PayVpnService ) {
@@ -124,7 +129,7 @@ export const BuildTransaction = (TrType: SentinelMsgType, params:any) => {
 };
 
 
-export const SendTransaction = async  (Recipient: Address, memo: string, Amount?: FungibleToken, msg?: SentinelMsgType,msgtype?:SentinelMsgType) => {
+export const SendTransaction = async  (Recipient: Address, memo: string, Token: Amount,msgtype:SentinelMsgType, msg?: any) => {
   const sendTx: SendTx = {
     kind: TransactionKind.Send,
     chainId: chainId,
@@ -133,9 +138,9 @@ export const SendTransaction = async  (Recipient: Address, memo: string, Amount?
     memo: memo,
     msgType: BuildTransaction(msgtype,msg) || null,
     amount: {
-      whole: Amount.whole,
-      fractional: Amount.fraction,
-      tokenTicker: Amount.ticker as TokenTicker,
+      quantity: Token.quantity,
+      fractionalDigits: Token.fractionalDigits,
+      tokenTicker: Token.tokenTicker as TokenTicker,
     } || null
 
   };

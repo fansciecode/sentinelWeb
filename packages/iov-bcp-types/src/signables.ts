@@ -2,7 +2,7 @@ import { As } from "type-tagger";
 
 import { ChainId, PostableBytes, PublicKeyBundle, SignatureBytes } from "@iov/base-types";
 
-import { Nonce, UnsignedTransaction, FungibleToken, SessionID } from "./transactions";
+import { Amount,Nonce,SessionID,UnsignedTransaction} from "./transactions";
 
 /**
  * A printable transaction ID in a blockchain-specific format.

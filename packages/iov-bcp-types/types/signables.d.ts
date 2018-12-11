@@ -1,6 +1,6 @@
 import { As } from "type-tagger";
 import { ChainId, PostableBytes, PublicKeyBundle, SignatureBytes } from "@iov/base-types";
-import { Nonce, UnsignedTransaction } from "./transactions";
+import { Amount,Nonce, SessionID,UnsignedTransaction} from "./transactions";
 /**
  * A printable transaction ID in a blockchain-specific format.
  *
@@ -21,12 +21,12 @@ export interface SigningJob {
     readonly prehashType: PrehashType;
 }
 //Sentinel client signature type 
-export interface ClientSignature extends FullSignature {
-// readonly Coins :FungibleToken;
-readonly SessionId :SessionID;
-readonly counter :number;
-readonly isfinal :1;
-}
+// export interface ClientSignature extends FullSignature {
+// // readonly Coins :FungibleToken;
+// readonly SessionId :SessionID;
+// readonly counter :number;
+// readonly isfinal :1;
+// }
 export interface FullSignature {
     readonly nonce: Nonce;
     readonly pubkey: PublicKeyBundle;
