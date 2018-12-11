@@ -3,4 +3,4 @@ import {Walletprofile } from "./Wallet"
 
 // import * as wallet from  "./Wallet"
 
-export const address = bnsCodec.keyToAddress(id.pubKey);
+export const address = bnsCodec.keyToAddress(Walletprofile().Profile);
