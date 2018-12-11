@@ -16,7 +16,7 @@ import {
   TransactionKind
 } from "@iov/bcp-types";
 import {address}from "./Codec";
-import{Profile} from "./Wallet";
+// import{Profile} from "./Wallet";
 
 import { chainId, signer } from "./Network";
 
