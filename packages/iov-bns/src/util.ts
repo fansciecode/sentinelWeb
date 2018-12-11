@@ -1,7 +1,10 @@
+import Long from "long";
 import { As } from "type-tagger";
 
+import { Algorithm, ChainId, PublicKeyBundle } from "@iov/base-types";
 import {
   Address,
+  BcpTxQuery,
   ConfirmedTransaction,
   Nonce,
   SignableBytes,
@@ -11,25 +14,47 @@ import {
   TransactionKind,
 } from "@iov/bcp-types";
 import { Sha256 } from "@iov/crypto";
-import { Encoding } from "@iov/encoding";
-import { Algorithm, ChainId, PublicKeyBundle } from "@iov/tendermint-types";
+import { Bech32, Encoding } from "@iov/encoding";
+import { QueryString } from "@iov/tendermint-rpc";
 
-export const keyToAddress = (key: PublicKeyBundle) =>
-  new Sha256(keyToIdentifier(key)).digest().slice(0, 20) as Address;
+/** Encodes raw bytes into a bech32 address */
+export function encodeBnsAddress(bytes: Uint8Array): Address {
+  return Bech32.encode("tiov", bytes) as Address;
+}
 
-export const keyToIdentifier = (key: PublicKeyBundle) =>
-  Uint8Array.from([...algoToPrefix(key.algo), ...key.data]);
+/** Decodes a printable address into bech32 object */
+export function decodeBnsAddress(address: Address): { readonly prefix: string; readonly data: Uint8Array } {
+  return Bech32.decode(address);
+}
 
-const algoToPrefix = (algo: Algorithm) => {
+function algoToPrefix(algo: Algorithm): Uint8Array {
   switch (algo) {
-    case Algorithm.ED25519:
+    case Algorithm.Ed25519:
       return Encoding.toAscii("sigs/ed25519/");
-    case Algorithm.SECP256K1:
+    case Algorithm.Secp256k1:
       return Encoding.toAscii("sigs/secp256k1/");
     default:
       throw new Error("Unsupported algorithm: " + algo);
   }
-};
+}
+
+function keyToIdentifier(key: PublicKeyBundle): Uint8Array {
+  return Uint8Array.from([...algoToPrefix(key.algo), ...key.data]);
+}
+
+export function keyToAddress(key: PublicKeyBundle): Address {
+  const bytes = new Sha256(keyToIdentifier(key)).digest().slice(0, 20);
+  return encodeBnsAddress(bytes);
+}
+
+export function isValidAddress(address: string): boolean {
+  try {
+    decodeBnsAddress(address as Address);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const signCodev1: Uint8Array = Uint8Array.from([0, 0xca, 0xfe, 0]);
 
@@ -42,7 +67,7 @@ export const appendSignBytes = (bz: Uint8Array, chainId: ChainId, nonce: Nonce) 
     ...signCodev1,
     chainId.length,
     ...Encoding.toAscii(chainId),
-    ...nonce.toBytesBE(),
+    ...Long.fromNumber(nonce.toNumber()).toBytesBE(),
     ...bz,
   ]) as SignableBytes;
 };
@@ -79,4 +104,22 @@ export function isSwapRelease(
   return (
     tx.transaction.kind === TransactionKind.SwapClaim || tx.transaction.kind === TransactionKind.SwapTimeout
   );
+}
+
+export function buildTxQuery(query: BcpTxQuery): QueryString {
+  const tagComponents = query.tags !== undefined ? query.tags.map(tag => `${tag.key}='${tag.value}'`) : [];
+  // In Tendermint, hash can be lower case for search queries but must be upper case for subscribe queries
+  const hashComponents = query.id !== undefined ? [`tx.hash='${query.id}'`] : [];
+  const heightComponents = query.height !== undefined ? [`tx.height=${query.height}`] : [];
+  const minHeightComponents = query.minHeight !== undefined ? [`tx.height>${query.minHeight}`] : [];
+  const maxHeightComponents = query.maxHeight !== undefined ? [`tx.height<${query.maxHeight}`] : [];
+
+  const components: ReadonlyArray<string> = [
+    ...tagComponents,
+    ...hashComponents,
+    ...heightComponents,
+    ...minHeightComponents,
+    ...maxHeightComponents,
+  ];
+  return components.join(" AND ") as QueryString;
 }

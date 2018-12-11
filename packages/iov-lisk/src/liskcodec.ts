@@ -1,30 +1,30 @@
 import { ReadonlyDate } from "readonly-date";
 
 import {
-  Address,
-  Nonce,
-  PrehashType,
-  SignableBytes,
-  SignedTransaction,
-  SigningJob,
-  TransactionIdBytes,
-  TransactionKind,
-  TxCodec,
-  UnsignedTransaction,
-} from "@iov/bcp-types";
-import { Encoding } from "@iov/encoding";
-import {
   Algorithm,
   ChainId,
   PostableBytes,
   PublicKeyBundle,
   PublicKeyBytes,
   SignatureBytes,
-} from "@iov/tendermint-types";
+} from "@iov/base-types";
+import {
+  Address,
+  Nonce,
+  PrehashType,
+  SignableBytes,
+  SignedTransaction,
+  SigningJob,
+  TransactionId,
+  TransactionKind,
+  TxCodec,
+  UnsignedTransaction,
+} from "@iov/bcp-types";
+import { Parse, Serialization } from "@iov/dpos";
+import { Encoding } from "@iov/encoding";
 
-import { pubkeyToAddress } from "./derivation";
-import { Parse } from "./parse";
-import { amountFromComponents, serializeTransaction, transactionId } from "./serialization";
+import { constants } from "./constants";
+import { isValidAddress, pubkeyToAddress } from "./derivation";
 
 export const liskCodec: TxCodec = {
   /**
@@ -35,7 +35,11 @@ export const liskCodec: TxCodec = {
     const creationTimestamp = nonce.toNumber();
     const creationDate = new ReadonlyDate(creationTimestamp * 1000);
     return {
-      bytes: serializeTransaction(unsigned, creationDate) as SignableBytes,
+      bytes: Serialization.serializeTransaction(
+        unsigned,
+        creationDate,
+        constants.transactionSerializationOptions,
+      ) as SignableBytes,
       prehashType: PrehashType.Sha256,
     };
   },
@@ -49,28 +53,25 @@ export const liskCodec: TxCodec = {
       case TransactionKind.Send:
         const timestamp = signed.primarySignature.nonce.toNumber();
         const liskTimestamp = timestamp - 1464109200;
-        const id = transactionId(
+        const id = Serialization.transactionId(
           signed.transaction,
           new ReadonlyDate(timestamp * 1000),
           signed.primarySignature,
-        );
-        const amount = amountFromComponents(
-          signed.transaction.amount.whole,
-          signed.transaction.amount.fractional,
+          constants.transactionSerializationOptions,
         );
 
         const postableObject = {
           type: 0,
-          amount: amount.toString(10),
-          recipientId: Encoding.fromAscii(signed.transaction.recipient),
-          senderPublicKey: Encoding.toHex(signed.primarySignature.publicKey.data),
+          amount: signed.transaction.amount.quantity,
+          recipientId: signed.transaction.recipient,
+          senderPublicKey: Encoding.toHex(signed.primarySignature.pubkey.data),
           timestamp: liskTimestamp,
           fee: "10000000", // 0.1 LSK fixed
           asset: {
             data: signed.transaction.memo,
           },
           signature: Encoding.toHex(signed.primarySignature.signature),
-          id: Encoding.fromAscii(id),
+          id: id,
         };
         return Encoding.toUtf8(JSON.stringify(postableObject)) as PostableBytes;
       default:
@@ -82,10 +83,15 @@ export const liskCodec: TxCodec = {
    * Transaction ID as implemented in
    * https://github.com/prolina-foundation/snapshot-validator/blob/35621c7/src/transaction.cpp#L87
    */
-  identifier: (signed: SignedTransaction): TransactionIdBytes => {
+  identifier: (signed: SignedTransaction): TransactionId => {
     const creationTimestamp = signed.primarySignature.nonce.toNumber();
     const creationDate = new ReadonlyDate(creationTimestamp * 1000);
-    return transactionId(signed.transaction, creationDate, signed.primarySignature);
+    return Serialization.transactionId(
+      signed.transaction,
+      creationDate,
+      signed.primarySignature,
+      constants.transactionSerializationOptions,
+    );
   },
 
   /**
@@ -106,21 +112,29 @@ export const liskCodec: TxCodec = {
     return {
       transaction: {
         chainId: chainId,
-        fee: Parse.liskAmount(json.fee),
+        fee: {
+          quantity: Parse.parseQuantity(json.fee),
+          fractionalDigits: constants.primaryTokenFractionalDigits,
+          tokenTicker: constants.primaryTokenTicker,
+        },
         signer: {
-          algo: Algorithm.ED25519,
+          algo: Algorithm.Ed25519,
           data: Encoding.fromHex(json.senderPublicKey) as PublicKeyBytes,
         },
         ttl: undefined,
         kind: kind,
-        amount: Parse.liskAmount(json.amount),
-        recipient: Encoding.toAscii(json.recipientId) as Address,
+        amount: {
+          quantity: Parse.parseQuantity(json.amount),
+          fractionalDigits: constants.primaryTokenFractionalDigits,
+          tokenTicker: constants.primaryTokenTicker,
+        },
+        recipient: json.recipientId as Address,
         memo: json.asset.data,
       },
       primarySignature: {
-        nonce: Parse.timeToNonce(Parse.fromLiskTimestamp(json.timestamp)),
-        publicKey: {
-          algo: Algorithm.ED25519,
+        nonce: Parse.timeToNonce(Parse.fromTimestamp(json.timestamp)),
+        pubkey: {
+          algo: Algorithm.Ed25519,
           data: Encoding.fromHex(json.senderPublicKey) as PublicKeyBytes,
         },
         signature: Encoding.fromHex(json.signature) as SignatureBytes,
@@ -139,6 +153,8 @@ export const liskCodec: TxCodec = {
    * These are bugs we have to deal with.
    */
   keyToAddress: (pubkey: PublicKeyBundle): Address => {
-    return pubkeyToAddress(pubkey.data) as Address;
+    return pubkeyToAddress(pubkey.data);
   },
+
+  isValidAddress: isValidAddress,
 };

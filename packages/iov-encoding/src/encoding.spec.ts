@@ -1,4 +1,4 @@
-import { Encoding } from "./encoding";
+import { Bech32, Encoding } from "./encoding";
 
 describe("Encoding", () => {
   it("encodes to hex", () => {
@@ -128,6 +128,14 @@ describe("Encoding", () => {
       expect(Encoding.fromUtf8(new Uint8Array([]))).toEqual("");
       expect(Encoding.fromUtf8(new Uint8Array([0x61, 0x62, 0x63]))).toEqual("abc");
       expect(Encoding.fromUtf8(new Uint8Array([0x20, 0x3f, 0x3d, 0x2d, 0x6e, 0x7c, 0x7e, 0x2b, 0x2d, 0x2a, 0x2f, 0x5c]))).toEqual(" ?=-n|~+-*/\\");
+    });
+
+    it("encodes null character", () => {
+      expect(Encoding.toUtf8("\u0000")).toEqual(new Uint8Array([0x00]));
+    });
+
+    it("decodes null byte", () => {
+      expect(Encoding.fromUtf8(new Uint8Array([0x00]))).toEqual("\u0000");
     });
 
     it("encodes Basic Multilingual Plane strings", () => {
@@ -303,5 +311,19 @@ describe("Encoding", () => {
       expect(Encoding.toRfc3339(new Date(Date.UTC(0, 0, 1, 0, 0, 0)))).toEqual("1900-01-01T00:00:00.000Z");
       expect(Encoding.toRfc3339(new Date(Date.UTC(2002, 9, 2, 11, 12, 13, 456)))).toEqual("2002-10-02T11:12:13.456Z");
     });
+  });
+});
+
+describe("Bech32", () => {
+  // test data generate using https://github.com/nym-zone/bech32
+  // bech32 -e -h eth 9d4e856e572e442f0a4b2763e72d08a0e99d8ded
+  const ethAddressRaw = Encoding.fromHex("9d4e856e572e442f0a4b2763e72d08a0e99d8ded");
+
+  it("encodes", () => {
+    expect(Bech32.encode("eth", ethAddressRaw)).toEqual("eth1n48g2mjh9ezz7zjtya37wtgg5r5emr0drkwlgw");
+  });
+
+  it("decodes", () => {
+    expect(Bech32.decode("eth1n48g2mjh9ezz7zjtya37wtgg5r5emr0drkwlgw")).toEqual({ prefix: "eth", data: ethAddressRaw });
   });
 });

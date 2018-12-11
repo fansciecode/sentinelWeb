@@ -3,18 +3,20 @@
 
 // this should serve as an entry point into the whole monorepo.
 
+export { ChainId } from "@iov/base-types";
 export { Address, Nonce, SendTx, SetNameTx, TokenTicker, TransactionKind } from "@iov/bcp-types";
 export { bnsConnector, bnsFromOrToTag, bnsNonceTag, bnsSwapQueryTags } from "@iov/bns";
 export {
   Ed25519HdWallet,
-  Ed25519KeyringEntry,
-  Ed25519SimpleAddressKeyringEntry,
+  Ed25519Wallet,
+  HdPaths,
   Keyring,
-  KeyringEntry,
-  KeyringEntryImplementationIdString,
-  KeyringEntrySerializationString,
+  Secp256k1HdWallet,
   UserProfile,
+  Wallet,
+  WalletId,
+  WalletImplementationIdString,
+  WalletSerializationString,
 } from "@iov/keycontrol";
-export { ChainId } from "@iov/tendermint-types";
 
-export { IovWriter } from "./writer";
+export { MultiChainSigner } from "./multichainsigner";

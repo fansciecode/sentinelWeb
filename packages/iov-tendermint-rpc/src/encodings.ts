@@ -9,7 +9,6 @@ export type HexString = string & As<"hex">;
 export type IntegerString = string & As<"integer">;
 export type IpPortString = string & As<"ipport">;
 export type DateTimeString = string & As<"datetime">;
-export type QueryString = string & As<"query">;
 
 interface Lengther {
   readonly length: number;
@@ -45,8 +44,24 @@ export function may<T, U>(transform: (val: T) => U, value: T | null | undefined)
   return value === undefined || value === null ? undefined : transform(value);
 }
 
-export function parseInteger(str: IntegerString): number {
-  return Int53.fromString(str).asNumber();
+export class Integer {
+  public static parse(str: IntegerString): number {
+    return Int53.fromString(str).toNumber();
+  }
+
+  public static encode(num: number): IntegerString {
+    return new Int53(num).toString() as IntegerString;
+  }
+
+  public static ensure(num: unknown): number {
+    if (typeof num !== "number") {
+      throw new Error(`${num} is not a number`);
+    }
+    if (!Number.isInteger(num)) {
+      throw new Error(`${num} is not an integer`);
+    }
+    return num;
+  }
 }
 
 export class Base64 {

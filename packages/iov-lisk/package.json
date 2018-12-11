@@ -1,6 +1,6 @@
 {
   "name": "@iov/lisk",
-  "version": "0.6.1",
+  "version": "0.9.2",
   "description": "Transaction codec and client to communicate with the Lisk blockchain",
   "author": "IOV SAS <admin@iov.one>",
   "license": "Apache-2.0",
@@ -10,7 +10,6 @@
     "type": "git",
     "url": "https://github.com/iov-one/iov-core/tree/master/packages/iov-lisk"
   },
-  "private": true,
   "publishConfig": {
     "access": "public"
   },
@@ -18,8 +17,8 @@
     "docs": "shx rm -rf docs && typedoc --options typedoc.js",
     "format": "prettier --write --loglevel warn \"./src/**/*.ts\"",
     "lint": "cross-env-shell \"tslint -t verbose --project . ${TSLINT_FLAGS}\"",
-    "prebuild": "yarn format && yarn lint",
-    "move-types": "shx rm ./types/* && shx mv build/*.d.ts ./types && shx rm ./types/*.spec.d.ts",
+    "prebuild": "yarn format",
+    "move-types": "shx rm -r ./types/* && shx mv build/types/* ./types && shx rm ./types/*.spec.d.ts",
     "build": "shx rm -rf ./build && tsc && yarn move-types",
     "build-or-skip": "[ -n \"$SKIP_BUILD\" ] || yarn build",
     "test-node": "node jasmine-testrunner.js",
@@ -31,12 +30,16 @@
     "pack-web": "yarn build-or-skip && webpack --mode development --config webpack.web.config.js"
   },
   "dependencies": {
-    "@iov/bcp-types": "^0.6.1",
-    "@iov/crypto": "^0.6.1",
-    "@iov/encoding": "^0.6.0",
-    "@iov/keycontrol": "^0.6.1",
+    "@iov/base-types": "^0.9.0",
+    "@iov/bcp-types": "^0.9.0",
+    "@iov/crypto": "^0.9.1",
+    "@iov/dpos": "^0.9.1",
+    "@iov/encoding": "^0.9.0",
+    "@iov/keycontrol": "^0.9.2",
+    "@iov/stream": "^0.9.2",
     "@types/long": "^4.0.0",
     "axios": "^0.18.0",
+    "fast-deep-equal": "^2.0.1",
     "long": "^4.0.0",
     "readonly-date": "^1.0.0",
     "xstream": "^11.7.0"

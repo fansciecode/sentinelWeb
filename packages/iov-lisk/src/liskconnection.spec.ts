@@ -1,108 +1,178 @@
-import { Address, BcpAccountQuery, SendTx, TokenTicker, TransactionKind } from "@iov/bcp-types";
+import { ReadonlyDate } from "readonly-date";
+
+import { Algorithm, ChainId, PublicKeyBundle, PublicKeyBytes, SignatureBytes } from "@iov/base-types";
+import {
+  Address,
+  Amount,
+  BcpAccountQuery,
+  BcpAddressQuery,
+  BcpBlockInfo,
+  BcpPubkeyQuery,
+  BcpTransactionState,
+  SendTx,
+  SignedTransaction,
+  TokenTicker,
+  TransactionId,
+  TransactionKind,
+} from "@iov/bcp-types";
+import { Derivation } from "@iov/dpos";
 import { Encoding } from "@iov/encoding";
-import { ChainId } from "@iov/tendermint-types";
+import { Ed25519Wallet } from "@iov/keycontrol";
 
 import { liskCodec } from "./liskcodec";
 import { generateNonce, LiskConnection } from "./liskconnection";
-import { LiskKeyringEntry } from "./liskkeyringentry";
 
-function pendingWithoutLongRunning(): void {
-  if (!process.env.LONG_RUNNING_ENABLED) {
-    pending("Set LONG_RUNNING_ENABLED to enable long running tests");
+const { fromHex } = Encoding;
+
+function pendingWithoutLiskDevnet(): void {
+  if (!process.env.LISK_ENABLED) {
+    pending("Set LISK_ENABLED to enable Lisk network tests");
   }
 }
 
-const liskTestnet = "da3ed6a45429278bac2666961289ca17ad86595d33b31037615d4b8e8f158bba" as ChainId;
-
 describe("LiskConnection", () => {
-  const base = "https://testnet.lisk.io";
+  // a network that does not exist used for non-networking tests
+  const dummynetBase = "https://my-host.tld:12345";
+  const dummynetChainId = "f0b96e79655665abbe95b7a7f626036eb20244ead279e5f972e87cbfd77daa09" as ChainId;
+  // a local devnet
+  const devnetBase = "http://localhost:4000";
+  const devnetChainId = "198f2b61a8eb95fbeed58b8216780b68f697f26b849acf00c8c93bb9b24f783d" as ChainId;
+  const devnetDefaultRecipient = "16313739661670634666L" as Address;
+  const devnetDefaultKeypair = Derivation.passphraseToKeypair(
+    "wagon stock borrow episode laundry kitten salute link globe zero feed marble",
+  );
+  const devnetDefaultAmount: Amount = {
+    quantity: "144550000",
+    fractionalDigits: 8,
+    tokenTicker: "LSK" as TokenTicker,
+  };
 
   it("can be constructed", () => {
-    const connection = new LiskConnection(base, liskTestnet);
+    const connection = new LiskConnection(dummynetBase, dummynetChainId);
     expect(connection).toBeTruthy();
   });
 
   it("takes different kind of API URLs", () => {
-    expect(new LiskConnection("http://localhost", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://localhost/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://localhost", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://localhost/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://localhost:456", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://localhost:456/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://localhost:456", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://localhost:456/", liskTestnet)).toBeTruthy();
+    expect(new LiskConnection("http://localhost", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://localhost/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://localhost", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://localhost/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://localhost:456", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://localhost:456/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://localhost:456", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://localhost:456/", dummynetChainId)).toBeTruthy();
 
-    expect(new LiskConnection("http://my-HOST.tld", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://my-HOST.tld/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://my-HOST.tld", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://my-HOST.tld/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://my-HOST.tld:456", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://my-HOST.tld:456/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://my-HOST.tld:456", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://my-HOST.tld:456/", liskTestnet)).toBeTruthy();
+    expect(new LiskConnection("http://my-HOST.tld", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://my-HOST.tld/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://my-HOST.tld", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://my-HOST.tld/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://my-HOST.tld:456", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://my-HOST.tld:456/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://my-HOST.tld:456", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://my-HOST.tld:456/", dummynetChainId)).toBeTruthy();
 
-    expect(new LiskConnection("http://123.123.123.123", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://123.123.123.123/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://123.123.123.123", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://123.123.123.123/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://123.123.123.123:456", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("http://123.123.123.123:456/", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://123.123.123.123:456", liskTestnet)).toBeTruthy();
-    expect(new LiskConnection("https://123.123.123.123:456/", liskTestnet)).toBeTruthy();
+    expect(new LiskConnection("http://123.123.123.123", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://123.123.123.123/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://123.123.123.123", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://123.123.123.123/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://123.123.123.123:456", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("http://123.123.123.123:456/", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://123.123.123.123:456", dummynetChainId)).toBeTruthy();
+    expect(new LiskConnection("https://123.123.123.123:456/", dummynetChainId)).toBeTruthy();
   });
 
   it("throws for invalid API URLs", () => {
     // wrong scheme
-    expect(() => new LiskConnection("localhost", liskTestnet)).toThrowError(/invalid api url/i);
-    expect(() => new LiskConnection("ftp://localhost", liskTestnet)).toThrowError(/invalid api url/i);
-    expect(() => new LiskConnection("ws://localhost", liskTestnet)).toThrowError(/invalid api url/i);
+    expect(() => new LiskConnection("localhost", dummynetChainId)).toThrowError(/invalid api url/i);
+    expect(() => new LiskConnection("ftp://localhost", dummynetChainId)).toThrowError(/invalid api url/i);
+    expect(() => new LiskConnection("ws://localhost", dummynetChainId)).toThrowError(/invalid api url/i);
 
     // unsupported hosts
-    expect(() => new LiskConnection("http://[2001::0370:7344]/", liskTestnet)).toThrowError(
+    expect(() => new LiskConnection("http://[2001::0370:7344]/", dummynetChainId)).toThrowError(
       /invalid api url/i,
     );
-    expect(() => new LiskConnection("http://[2001::0370:7344]:8080/", liskTestnet)).toThrowError(
+    expect(() => new LiskConnection("http://[2001::0370:7344]:8080/", dummynetChainId)).toThrowError(
       /invalid api url/i,
     );
 
     // wrong path
-    expect(() => new LiskConnection("http://localhost/api", liskTestnet)).toThrowError(/invalid api url/i);
+    expect(() => new LiskConnection("http://localhost/api", dummynetChainId)).toThrowError(
+      /invalid api url/i,
+    );
   });
 
   it("can disconnect", () => {
-    const connection = new LiskConnection(base, liskTestnet);
+    const connection = new LiskConnection(dummynetBase, dummynetChainId);
     expect(() => connection.disconnect()).not.toThrow();
   });
 
+  it("can get existing ticker", async () => {
+    const connection = new LiskConnection(dummynetBase, dummynetChainId);
+    const response = await connection.getTicker("LSK" as TokenTicker);
+    expect(response.data.length).toEqual(1);
+    expect(response.data[0].tokenTicker).toEqual("LSK");
+    expect(response.data[0].tokenName).toEqual("Lisk");
+  });
+
+  it("produces empty result for non-existing ticker", async () => {
+    const connection = new LiskConnection(dummynetBase, dummynetChainId);
+    const response = await connection.getTicker("ETH" as TokenTicker);
+    expect(response.data.length).toEqual(0);
+  });
+
+  it("can get all tickers", async () => {
+    const connection = new LiskConnection(dummynetBase, dummynetChainId);
+    const response = await connection.getAllTickers();
+    expect(response.data.length).toEqual(1);
+    expect(response.data[0].tokenTicker).toEqual("LSK");
+    expect(response.data[0].tokenName).toEqual("Lisk");
+  });
+
   it("can get chain ID", async () => {
-    const connection = await LiskConnection.establish(base);
+    pendingWithoutLiskDevnet();
+    const connection = await LiskConnection.establish(devnetBase);
     const chainId = connection.chainId();
-    expect(chainId).toEqual(liskTestnet);
+    expect(chainId).toEqual(devnetChainId);
   });
 
   it("can get height", async () => {
-    const connection = await LiskConnection.establish(base);
+    pendingWithoutLiskDevnet();
+    const connection = await LiskConnection.establish(devnetBase);
     const height = await connection.height();
-    expect(height).toBeGreaterThan(6000000);
-    expect(height).toBeLessThan(8000000);
+    expect(height).toBeGreaterThan(0);
+    expect(height).toBeLessThan(10000000);
   });
 
-  it("can get account", async () => {
-    // Generate dead target address:
-    // python3 -c 'import random; print("{}L".format(random.randint(0, 18446744073709551615)))'
-    const connection = await LiskConnection.establish(base);
-    const query: BcpAccountQuery = { address: Encoding.toAscii("15683599531721344316L") as Address };
+  it("can get account from address", async () => {
+    pendingWithoutLiskDevnet();
+    const connection = await LiskConnection.establish(devnetBase);
+    const query: BcpAccountQuery = { address: "1349293588603668134L" as Address };
     const account = await connection.getAccount(query);
-    expect(account.data[0].address).toEqual(Encoding.toAscii("15683599531721344316L"));
+    expect(account.data[0].address).toEqual("1349293588603668134L");
     expect(account.data[0].balance[0].tokenTicker).toEqual("LSK");
-    expect(account.data[0].balance[0].sigFigs).toEqual(8);
-    expect(account.data[0].balance[0].whole).toEqual(15);
-    expect(account.data[0].balance[0].fractional).toEqual(48687542);
+    expect(account.data[0].balance[0].fractionalDigits).toEqual(8);
+    expect(account.data[0].balance[0].quantity).toEqual("10034556677");
+  });
+
+  it("can get account from pubkey", async () => {
+    pendingWithoutLiskDevnet();
+    const connection = await LiskConnection.establish(devnetBase);
+    const pubkey: PublicKeyBundle = {
+      algo: Algorithm.Ed25519,
+      data: fromHex("e9e00a111875ccd0c2c937d87da18532cf99d011e0e8bfb981638f57427ba2c6") as PublicKeyBytes,
+    };
+    const query: BcpAccountQuery = { pubkey: pubkey };
+    const account = await connection.getAccount(query);
+    expect(account.data[0].address).toEqual("1349293588603668134L");
+    expect(account.data[0].balance[0].tokenTicker).toEqual("LSK");
+    expect(account.data[0].balance[0].fractionalDigits).toEqual(8);
+    expect(account.data[0].balance[0].quantity).toEqual("10034556677");
   });
 
   it("returns empty list when getting an unused account", async () => {
-    const unusedAddress = Encoding.toAscii("5648777643193648871L") as Address;
-    const connection = await LiskConnection.establish(base);
+    pendingWithoutLiskDevnet();
+    const unusedAddress = "5648777643193648871L" as Address;
+    const connection = await LiskConnection.establish(devnetBase);
     const response = await connection.getAccount({ address: unusedAddress });
     expect(response).toBeTruthy();
     expect(response.data).toBeTruthy();
@@ -110,69 +180,331 @@ describe("LiskConnection", () => {
   });
 
   it("can get nonce", async () => {
-    const connection = await LiskConnection.establish(base);
-    const query: BcpAccountQuery = { address: Encoding.toAscii("15683599531721344316L") as Address };
-    const nonce = await connection.getNonce(query);
+    pendingWithoutLiskDevnet();
+    const connection = await LiskConnection.establish(devnetBase);
 
-    expect(nonce.data[0].address).toEqual(Encoding.toAscii("15683599531721344316L"));
-    // nonce is current timestamp +/- one second
-    expect(nonce.data[0].nonce.toNumber()).toBeGreaterThanOrEqual(Date.now() / 1000 - 1);
-    expect(nonce.data[0].nonce.toNumber()).toBeLessThanOrEqual(Date.now() / 1000 + 1);
+    // by address
+    {
+      const query: BcpAddressQuery = { address: "6472030874529564639L" as Address };
+      const nonce = (await connection.getNonce(query)).data[0];
+      // nonce is current unix timestamp +/- one second
+      expect(nonce.toNumber()).toBeGreaterThanOrEqual(Date.now() / 1000 - 1);
+      expect(nonce.toNumber()).toBeLessThanOrEqual(Date.now() / 1000 + 1);
+    }
+
+    // by pubkey
+    {
+      const query: BcpPubkeyQuery = {
+        pubkey: {
+          algo: Algorithm.Ed25519,
+          data: fromHex("e9e00a111875ccd0c2c937d87da18532cf99d011e0e8bfb981638f57427ba2c6") as PublicKeyBytes,
+        },
+      };
+      const nonce = (await connection.getNonce(query)).data[0];
+      // nonce is current unix timestamp +/- one second
+      expect(nonce.toNumber()).toBeGreaterThanOrEqual(Date.now() / 1000 - 1);
+      expect(nonce.toNumber()).toBeLessThanOrEqual(Date.now() / 1000 + 1);
+    }
+
+    connection.disconnect();
   });
 
-  it(
-    "can post transaction",
-    async () => {
-      pendingWithoutLongRunning();
+  describe("getHeader", () => {
+    it("throws for invalid height arguments", async () => {
+      pendingWithoutLiskDevnet();
+      const connection = await LiskConnection.establish(devnetBase);
 
-      const entry = new LiskKeyringEntry();
-      const mainIdentity = await entry.createIdentity(
-        "oxygen fall sure lava energy veteran enroll frown question detail include maximum",
-      );
+      // not an integer
+      await connection
+        .getBlockHeader(NaN)
+        .then(() => fail("must not resolve"))
+        .catch(error => expect(error).toMatch(/height must be a non-negative safe integer/i));
+      await connection
+        .getBlockHeader(NaN)
+        .then(() => fail("must not resolve"))
+        .catch(error => expect(error).toMatch(/height must be a non-negative safe integer/i));
+      await connection
+        .getBlockHeader(1.1)
+        .then(() => fail("must not resolve"))
+        .catch(error => expect(error).toMatch(/height must be a non-negative safe integer/i));
+      await connection
+        .getBlockHeader(Number.POSITIVE_INFINITY)
+        .then(() => fail("must not resolve"))
+        .catch(error => expect(error).toMatch(/height must be a non-negative safe integer/i));
 
-      const recipientAddress = Encoding.toAscii("6076671634347365051L") as Address;
+      // out of range
+      await connection
+        .getBlockHeader(Number.MAX_SAFE_INTEGER + 1)
+        .then(() => fail("must not resolve"))
+        .catch(error => expect(error).toMatch(/height must be a non-negative safe integer/i));
+
+      // negative
+      await connection
+        .getBlockHeader(-1)
+        .then(() => fail("must not resolve"))
+        .catch(error => expect(error).toMatch(/height must be a non-negative safe integer/i));
+
+      connection.disconnect();
+    });
+
+    it("can get genesis", async () => {
+      pendingWithoutLiskDevnet();
+      const connection = await LiskConnection.establish(devnetBase);
+
+      const header = await connection.getBlockHeader(1);
+      expect(header.id).toEqual("6524861224470851795");
+      expect(header.height).toEqual(1);
+      expect(header.time).toEqual(new ReadonlyDate(1464109200 /* lisk epoch as unix timestamp */ * 1000));
+      expect(header.transactionCount).toEqual(103);
+
+      connection.disconnect();
+    });
+
+    it("rejects for non-existing block", async () => {
+      pendingWithoutLiskDevnet();
+      const connection = await LiskConnection.establish(devnetBase);
+
+      await connection
+        .getBlockHeader(20_000_000)
+        .then(() => fail("must not resolve"))
+        .catch(error => expect(error).toMatch(/block does not exist/i));
+
+      connection.disconnect();
+    });
+  });
+
+  describe("postTx", () => {
+    it("can post transaction", async () => {
+      pendingWithoutLiskDevnet();
+
+      const wallet = new Ed25519Wallet();
+      const mainIdentity = await wallet.createIdentity(await devnetDefaultKeypair);
 
       const sendTx: SendTx = {
         kind: TransactionKind.Send,
-        chainId: liskTestnet,
+        chainId: devnetChainId,
         signer: mainIdentity.pubkey,
-        recipient: recipientAddress,
-        memo: "We ❤️ developers – iov.one",
-        amount: {
-          whole: 1,
-          fractional: 44550000,
-          tokenTicker: "LSK" as TokenTicker,
-        },
+        recipient: devnetDefaultRecipient,
+        memo: `We ❤️ developers – iov.one ${Math.random()}`,
+        amount: devnetDefaultAmount,
       };
 
       // Encode creation timestamp into nonce
       const nonce = generateNonce();
       const signingJob = liskCodec.bytesToSign(sendTx, nonce);
-      const signature = await entry.createTransactionSignature(
+      const signature = await wallet.createTransactionSignature(
         mainIdentity,
         signingJob.bytes,
         signingJob.prehashType,
-        liskTestnet,
+        devnetChainId,
       );
 
-      const signedTransaction = {
+      const signedTransaction: SignedTransaction = {
         transaction: sendTx,
         primarySignature: {
           nonce: nonce,
-          publicKey: mainIdentity.pubkey,
+          pubkey: mainIdentity.pubkey,
           signature: signature,
         },
         otherSignatures: [],
       };
       const bytesToPost = liskCodec.bytesToPost(signedTransaction);
 
-      const connection = await LiskConnection.establish(base);
+      const connection = await LiskConnection.establish(devnetBase);
       const result = await connection.postTx(bytesToPost);
       expect(result).toBeTruthy();
-      expect(result.metadata.height).toBeDefined();
-      expect(result.metadata.height).toBeGreaterThan(6000000);
-      expect(result.metadata.height).toBeLessThan(8000000);
-    },
-    40 * 1000,
-  );
+    });
+
+    it("can post transaction and watch confirmations", done => {
+      pendingWithoutLiskDevnet();
+
+      (async () => {
+        const wallet = new Ed25519Wallet();
+        const mainIdentity = await wallet.createIdentity(await devnetDefaultKeypair);
+
+        const sendTx: SendTx = {
+          kind: TransactionKind.Send,
+          chainId: devnetChainId,
+          signer: mainIdentity.pubkey,
+          recipient: devnetDefaultRecipient,
+          memo: `We ❤️ developers – iov.one ${Math.random()}`,
+          amount: devnetDefaultAmount,
+        };
+
+        // Encode creation timestamp into nonce
+        const nonce = generateNonce();
+        const signingJob = liskCodec.bytesToSign(sendTx, nonce);
+        const signature = await wallet.createTransactionSignature(
+          mainIdentity,
+          signingJob.bytes,
+          signingJob.prehashType,
+          devnetChainId,
+        );
+
+        const signedTransaction: SignedTransaction = {
+          transaction: sendTx,
+          primarySignature: {
+            nonce: nonce,
+            pubkey: mainIdentity.pubkey,
+            signature: signature,
+          },
+          otherSignatures: [],
+        };
+        const bytesToPost = liskCodec.bytesToPost(signedTransaction);
+
+        const connection = await LiskConnection.establish(devnetBase);
+        const heightBeforeTransaction = await connection.height();
+        const result = await connection.postTx(bytesToPost);
+        expect(result).toBeTruthy();
+        expect(result.blockInfo.value.state).toEqual(BcpTransactionState.Pending);
+
+        const events = new Array<BcpBlockInfo>();
+        const subscription = result.blockInfo.updates.subscribe({
+          next: info => {
+            events.push(info);
+
+            if (events.length === 2) {
+              expect(events[0]).toEqual({ state: BcpTransactionState.Pending });
+              expect(events[1]).toEqual({
+                state: BcpTransactionState.InBlock,
+                height: heightBeforeTransaction + 1,
+                confirmations: 1,
+              });
+              subscription.unsubscribe();
+              done();
+            }
+          },
+          complete: fail,
+          error: fail,
+        });
+      })().catch(fail);
+    }, 30000);
+
+    xit("can post transaction and wait for 4 confirmations", async () => {
+      pendingWithoutLiskDevnet();
+
+      const wallet = new Ed25519Wallet();
+      const mainIdentity = await wallet.createIdentity(await devnetDefaultKeypair);
+
+      const sendTx: SendTx = {
+        kind: TransactionKind.Send,
+        chainId: devnetChainId,
+        signer: mainIdentity.pubkey,
+        recipient: devnetDefaultRecipient,
+        memo: `We ❤️ developers – iov.one ${Math.random()}`,
+        amount: devnetDefaultAmount,
+      };
+
+      // Encode creation timestamp into nonce
+      const nonce = generateNonce();
+      const signingJob = liskCodec.bytesToSign(sendTx, nonce);
+      const signature = await wallet.createTransactionSignature(
+        mainIdentity,
+        signingJob.bytes,
+        signingJob.prehashType,
+        devnetChainId,
+      );
+
+      const signedTransaction: SignedTransaction = {
+        transaction: sendTx,
+        primarySignature: {
+          nonce: nonce,
+          pubkey: mainIdentity.pubkey,
+          signature: signature,
+        },
+        otherSignatures: [],
+      };
+      const bytesToPost = liskCodec.bytesToPost(signedTransaction);
+
+      const connection = await LiskConnection.establish(devnetBase);
+      const heightBeforeTransaction = await connection.height();
+      const result = await connection.postTx(bytesToPost);
+      await result.blockInfo.waitFor(
+        info => info.state === BcpTransactionState.InBlock && info.confirmations === 4,
+      );
+
+      expect(result.blockInfo.value).toEqual({
+        state: BcpTransactionState.InBlock,
+        height: heightBeforeTransaction + 1,
+        confirmations: 4,
+      });
+    }, 60000);
+
+    it("throws for invalid transaction", async () => {
+      pendingWithoutLiskDevnet();
+
+      const wallet = new Ed25519Wallet();
+      const mainIdentity = await wallet.createIdentity(await devnetDefaultKeypair);
+
+      const sendTx: SendTx = {
+        kind: TransactionKind.Send,
+        chainId: devnetChainId,
+        signer: mainIdentity.pubkey,
+        recipient: devnetDefaultRecipient,
+        memo: "We ❤️ developers – iov.one",
+        amount: devnetDefaultAmount,
+      };
+
+      // Encode creation timestamp into nonce
+      const nonce = generateNonce();
+      const signingJob = liskCodec.bytesToSign(sendTx, nonce);
+      const signature = await wallet.createTransactionSignature(
+        mainIdentity,
+        signingJob.bytes,
+        signingJob.prehashType,
+        devnetChainId,
+      );
+
+      // tslint:disable-next-line:no-bitwise
+      const corruptedSignature = signature.map((x, i) => (i === 0 ? x ^ 0x01 : x)) as SignatureBytes;
+
+      const signedTransaction: SignedTransaction = {
+        transaction: sendTx,
+        primarySignature: {
+          nonce: nonce,
+          pubkey: mainIdentity.pubkey,
+          signature: corruptedSignature,
+        },
+        otherSignatures: [],
+      };
+      const bytesToPost = liskCodec.bytesToPost(signedTransaction);
+
+      const connection = await LiskConnection.establish(devnetBase);
+      await connection
+        .postTx(bytesToPost)
+        .then(() => fail("must not resolve"))
+        .catch(error => expect(error).toMatch(/failed with status code 409/i));
+    });
+
+    it("can search transaction", async () => {
+      pendingWithoutLiskDevnet();
+      const connection = await LiskConnection.establish(devnetBase);
+
+      // by non-existing ID
+      {
+        const searchId = "98568736528934587" as TransactionId;
+        const results = await connection.searchTx({ id: searchId });
+        expect(results.length).toEqual(0);
+      }
+
+      // by existing ID (from lisk/init.sh)
+      {
+        const searchId = "12493173350733478622" as TransactionId;
+        const results = await connection.searchTx({ id: searchId });
+        expect(results.length).toEqual(1);
+        const result = results[0];
+        expect(result.height).toBeGreaterThanOrEqual(2);
+        expect(result.height).toBeLessThan(100);
+        expect(result.transactionId).toEqual(searchId);
+        const transaction = result.transaction;
+        if (transaction.kind !== TransactionKind.Send) {
+          throw new Error("Unexpected transaction type");
+        }
+        expect(transaction.recipient).toEqual("1349293588603668134L");
+        expect(transaction.amount.quantity).toEqual("10044556677");
+      }
+
+      connection.disconnect();
+    });
+  });
 });

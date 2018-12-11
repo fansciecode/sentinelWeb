@@ -1,8 +1,16 @@
 import { As } from "type-tagger";
-import { Address, ConfirmedTransaction, Nonce, SignableBytes, SwapClaimTx, SwapCounterTx, SwapTimeoutTx } from "@iov/bcp-types";
-import { ChainId, PublicKeyBundle } from "@iov/tendermint-types";
-export declare const keyToAddress: (key: PublicKeyBundle) => Address;
-export declare const keyToIdentifier: (key: PublicKeyBundle) => Uint8Array;
+import { ChainId, PublicKeyBundle } from "@iov/base-types";
+import { Address, BcpTxQuery, ConfirmedTransaction, Nonce, SignableBytes, SwapClaimTx, SwapCounterTx, SwapTimeoutTx } from "@iov/bcp-types";
+import { QueryString } from "@iov/tendermint-rpc";
+/** Encodes raw bytes into a bech32 address */
+export declare function encodeBnsAddress(bytes: Uint8Array): Address;
+/** Decodes a printable address into bech32 object */
+export declare function decodeBnsAddress(address: Address): {
+    readonly prefix: string;
+    readonly data: Uint8Array;
+};
+export declare function keyToAddress(key: PublicKeyBundle): Address;
+export declare function isValidAddress(address: string): boolean;
 export declare const appendSignBytes: (bz: Uint8Array, chainId: ChainId, nonce: Nonce) => SignableBytes;
 export declare const tendermintHash: (data: Uint8Array) => Uint8Array;
 export declare const arraysEqual: (a: Uint8Array, b: Uint8Array) => boolean;
@@ -16,3 +24,4 @@ export declare const bucketKey: (bucket: string) => Uint8Array;
 export declare const indexKey: (bucket: string, index: string) => Uint8Array;
 export declare function isSwapOffer(tx: ConfirmedTransaction): tx is ConfirmedTransaction<SwapCounterTx>;
 export declare function isSwapRelease(tx: ConfirmedTransaction): tx is ConfirmedTransaction<SwapClaimTx | SwapTimeoutTx>;
+export declare function buildTxQuery(query: BcpTxQuery): QueryString;

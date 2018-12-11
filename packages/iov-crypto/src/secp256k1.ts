@@ -3,7 +3,7 @@ import { Encoding } from "@iov/encoding";
 import BN = require("bn.js");
 import elliptic = require("elliptic");
 
-import { Sha256 } from "./sha";
+import { ExtendedSecp256k1Signature, Secp256k1Signature } from "./secp256k1signature";
 
 const secp256k1 = new elliptic.ec("secp256k1");
 const secp256k1N = new BN("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141", "hex");
@@ -37,7 +37,11 @@ export class Secp256k1 {
     // tslint:disable-next-line:no-object-literal-type-assertion
     return {
       privkey: Encoding.fromHex(keypair.getPrivate("hex")),
-      pubkey: Encoding.fromHex(keypair.getPublic().encodeCompressed("hex")),
+      // encodes uncompressed as
+      // - 1-byte prefix "04"
+      // - 32-byte x coordinate
+      // - 32-byte y coordinate
+      pubkey: Encoding.fromHex(keypair.getPublic().encode("hex")),
     } as Secp256k1Keypair;
   }
 
@@ -45,20 +49,39 @@ export class Secp256k1 {
   // - deterministic (RFC 6979)
   // - lowS signature
   // - DER encoded
-  public static async createSignature(message: Uint8Array, privkey: Uint8Array): Promise<Uint8Array> {
-    const messageHash = new Sha256(message).digest();
+  public static async createSignature(
+    messageHash: Uint8Array,
+    privkey: Uint8Array,
+  ): Promise<ExtendedSecp256k1Signature> {
+    if (messageHash.length === 0) {
+      throw new Error("Message hash must not be empty");
+    }
+    if (messageHash.length > 32) {
+      throw new Error("Message hash length must not exceed 32 bytes");
+    }
+
     const keypair = secp256k1.keyFromPrivate(privkey);
     // the `canonical` option ensures creation of lowS signature representations
-    const signature = new Uint8Array(keypair.sign(messageHash, { canonical: true }).toDER());
-    return signature;
+    const signature = keypair.sign(messageHash, { canonical: true });
+    return new ExtendedSecp256k1Signature(
+      (signature.r as BN).toArrayLike(Uint8Array),
+      (signature.s as BN).toArrayLike(Uint8Array),
+      signature.recoveryParam,
+    );
   }
 
   public static async verifySignature(
-    signature: Uint8Array,
-    message: Uint8Array,
+    signature: Secp256k1Signature,
+    messageHash: Uint8Array,
     pubkey: Uint8Array,
   ): Promise<boolean> {
-    const messageHash = new Sha256(message).digest();
+    if (messageHash.length === 0) {
+      throw new Error("Message hash must not be empty");
+    }
+    if (messageHash.length > 32) {
+      throw new Error("Message hash length must not exceed 32 bytes");
+    }
+
     const keypair = secp256k1.keyFromPublic(pubkey);
 
     // From https://github.com/indutny/elliptic:
@@ -75,7 +98,7 @@ export class Secp256k1 {
     // common to both types. Uint8Array is not an array of ints but the interface is
     // similar
     try {
-      return keypair.verify(messageHash, signature);
+      return keypair.verify(messageHash, signature.toDer());
     } catch (error) {
       return false;
     }

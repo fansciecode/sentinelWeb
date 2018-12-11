@@ -1,11 +1,11 @@
 {
   "name": "@iov/faucets",
-  "version": "0.6.1",
+  "version": "0.9.3",
   "description": "Faucets for some of the supported blockchains",
   "author": "IOV SAS <admin@iov.one>",
   "license": "Apache-2.0",
   "main": "build/index.js",
-  "types": "build/index.d.ts",
+  "types": "types/index.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/iov-one/iov-core/tree/master/packages/iov-faucets"
@@ -17,16 +17,23 @@
     "docs": "shx rm -rf docs && typedoc --options typedoc.js",
     "format": "prettier --write --loglevel warn \"./src/**/*.ts\"",
     "lint": "cross-env-shell \"tslint -t verbose --project . ${TSLINT_FLAGS}\"",
-    "prebuild": "yarn format && yarn lint",
-    "build": "tsc",
+    "prebuild": "yarn format",
+    "move-types": "shx rm -r ./types/* && shx mv build/types/* ./types && shx rm ./types/*.spec.d.ts",
+    "build": "shx rm -rf ./build && tsc && yarn move-types",
     "build-or-skip": "[ -n \"$SKIP_BUILD\" ] || yarn build",
+    "pack-web": "yarn build-or-skip && webpack --mode development --config webpack.web.config.js",
     "test-node": "node jasmine-testrunner.js",
+    "test-edge": "yarn pack-web && karma start --single-run --browsers Edge",
+    "test-firefox": "yarn pack-web && karma start --single-run --browsers Firefox",
+    "test-chrome": "yarn pack-web && karma start --single-run --browsers ChromeHeadless",
+    "test-safari": "yarn pack-web && karma start --single-run --browsers Safari",
     "test": "yarn build-or-skip && yarn test-node"
   },
   "dependencies": {
-    "@iov/bcp-types": "^0.6.1",
-    "@iov/crypto": "^0.6.1",
-    "@iov/encoding": "^0.6.0",
+    "@iov/bcp-types": "^0.9.0",
+    "@iov/bns": "^0.9.3",
+    "@iov/crypto": "^0.9.1",
+    "@iov/encoding": "^0.9.0",
     "axios": "^0.18.0"
   }
 }

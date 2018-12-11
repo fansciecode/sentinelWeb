@@ -1,5 +1,11 @@
-import { SignedTransaction, UnsignedTransaction,PayVpnServiceTx } from "@iov/bcp-types";
-import * as codecImpl from "./codecimpl";
-export declare const buildSignedTx: (tx: SignedTransaction<UnsignedTransaction>) => codecImpl.app.ITx;
-export declare const buildUnsignedTx: (tx: UnsignedTransaction) => codecImpl.app.ITx;
-export declare const buildMsg: (tx: UnsignedTransaction) => codecImpl.app.ITx;
+import { PublicKeyBundle } from "@iov/base-types";
+import { Amount, FullSignature, SignedTransaction, UnsignedTransaction } from "@iov/bcp-types";
+import * as codecImpl from "./generated/codecimpl";
+import { PrivateKeyBundle } from "./types";
+export declare function encodePubkey(publicKey: PublicKeyBundle): codecImpl.crypto.IPublicKey;
+export declare function encodePrivkey(privateKey: PrivateKeyBundle): codecImpl.crypto.IPrivateKey;
+export declare function encodeAmount(amount: Amount): codecImpl.x.ICoin;
+export declare function encodeFullSignature(fullSignature: FullSignature): codecImpl.sigs.IStdSignature;
+export declare function buildSignedTx(tx: SignedTransaction): codecImpl.app.ITx;
+export declare function buildUnsignedTx(tx: UnsignedTransaction): codecImpl.app.ITx;
+export declare function buildMsg(tx: UnsignedTransaction): codecImpl.app.ITx;

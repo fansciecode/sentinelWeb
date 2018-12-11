@@ -1,11 +1,12 @@
-import { Address, FullSignature, FungibleToken, SendTx, SignedTransaction } from "@iov/bcp-types";
-import { ChainId, PrivateKeyBundle, PublicKeyBundle } from "@iov/tendermint-types";
+import { ChainId, PublicKeyBundle } from "@iov/base-types";
+import { Address, Amount, FullSignature, SendTx, SignedTransaction } from "@iov/bcp-types";
+import { PrivateKeyBundle } from "./types";
 export declare const pubJson: PublicKeyBundle;
 export declare const pubBin: Uint8Array;
 export declare const privJson: PrivateKeyBundle;
 export declare const privBin: Uint8Array;
 export declare const address: Address;
-export declare const coinJson: FungibleToken;
+export declare const coinJson: Amount;
 export declare const coinBin: Uint8Array;
 export declare const chainId: ChainId;
 export declare const sendTxJson: SendTx;

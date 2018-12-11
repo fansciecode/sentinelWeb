@@ -3,31 +3,19 @@ import { LevelUp } from "levelup";
 import { ReadonlyDate } from "readonly-date";
 
 import { FullSignature, Nonce, SignedTransaction, TxCodec, UnsignedTransaction } from "@iov/bcp-types";
-import {
-  Argon2id,
-  Argon2idOptions,
-  Random,
-  Xchacha20poly1305Ietf,
-  Xchacha20poly1305IetfCiphertext,
-  Xchacha20poly1305IetfKey,
-  Xchacha20poly1305IetfMessage,
-  Xchacha20poly1305IetfNonce,
-} from "@iov/crypto";
-import { Encoding } from "@iov/encoding";
+import { Argon2id, Argon2idOptions, Slip10RawIndex } from "@iov/crypto";
+import { Encoding, Int53 } from "@iov/encoding";
+import { DefaultValueProducer, ValueAndUpdates } from "@iov/stream";
 
-import {
-  Keyring,
-  KeyringEntry,
-  KeyringEntryId,
-  KeyringSerializationString,
-  LocalIdentity,
-  PublicIdentity,
-} from "./keyring";
+import { Keyring } from "./keyring";
+import { EncryptedKeyring, KeyringEncryptor } from "./keyringencryptor";
 import { DatabaseUtils } from "./utils";
-import { DefaultValueProducer, ValueAndUpdates } from "./valueandupdates";
+import { LocalIdentity, PublicIdentity, Wallet, WalletId } from "./wallet";
+import { Ed25519Wallet } from "./wallets";
 
-const { toAscii, fromBase64, toBase64, fromUtf8, toUtf8, toRfc3339, fromRfc3339 } = Encoding;
+const { toAscii, fromBase64, toBase64, toRfc3339, fromRfc3339 } = Encoding;
 
+const storageKeyFormatVersion = "format_version";
 const storageKeyCreatedAt = "created_at";
 const storageKeyKeyring = "keyring";
 
@@ -48,6 +36,14 @@ export interface UserProfileOptions {
 }
 
 /**
+ * Read-only information about one wallet in a keyring/user profile
+ */
+export interface WalletInfo {
+  readonly id: WalletId;
+  readonly label: string | undefined;
+}
+
+/**
  * All calls must go though the UserProfile. A newly created UserProfile
  * is unlocked until lock() is called, which removes access to private key
  * material. Once locked, a UserProfile cannot be unlocked anymore since the
@@ -59,53 +55,37 @@ export class UserProfile {
     db: LevelUp<AbstractLevelDOWN<string, string>>,
     password: string,
   ): Promise<UserProfile> {
-    // get from storage (raw strings)
-    const createdAtFromStorage = await db.get(storageKeyCreatedAt, { asBuffer: false });
-    const keyringFromStorage = await db.get(storageKeyKeyring, { asBuffer: false });
+    const formatVersion = Int53.fromString(await db.get(storageKeyFormatVersion, { asBuffer: false }));
 
-    // process
-    const encryptionKey = (await Argon2id.execute(
-      password,
-      userProfileSalt,
-      weakPasswordHashingOptions,
-    )) as Xchacha20poly1305IetfKey;
-    const keyringBundle = fromBase64(keyringFromStorage);
-    const keyringNonce = keyringBundle.slice(0, 24) as Xchacha20poly1305IetfNonce;
-    const keyringCiphertext = keyringBundle.slice(24) as Xchacha20poly1305IetfCiphertext;
-    const decrypted = await Xchacha20poly1305Ietf.decrypt(keyringCiphertext, encryptionKey, keyringNonce);
-    const keyringSerialization = fromUtf8(decrypted) as KeyringSerializationString;
+    switch (formatVersion.toNumber()) {
+      case 1:
+        // get from storage (raw strings)
+        const createdAtFromStorage = await db.get(storageKeyCreatedAt, { asBuffer: false });
+        const keyringFromStorage = await db.get(storageKeyKeyring, { asBuffer: false });
 
-    // create objects
-    const createdAt = fromRfc3339(createdAtFromStorage);
-    const keyring = new Keyring(keyringSerialization);
-    return new UserProfile({ createdAt, keyring });
-  }
+        // process
+        const encryptionKey = await Argon2id.execute(password, userProfileSalt, weakPasswordHashingOptions);
+        const encryptedKeyring = fromBase64(keyringFromStorage) as EncryptedKeyring;
+        const keyringSerialization = await KeyringEncryptor.decrypt(encryptedKeyring, encryptionKey);
 
-  private static async makeNonce(): Promise<Xchacha20poly1305IetfNonce> {
-    return (await Random.getBytes(24)) as Xchacha20poly1305IetfNonce;
-  }
-
-  private static labels(entries: ReadonlyArray<KeyringEntry>): ReadonlyArray<string | undefined> {
-    return entries.map(e => e.label.value) as ReadonlyArray<string | undefined>;
-  }
-
-  private static ids(entries: ReadonlyArray<KeyringEntry>): ReadonlyArray<KeyringEntryId> {
-    return entries.map(e => e.id);
+        // create objects
+        const createdAt = fromRfc3339(createdAtFromStorage);
+        const keyring = new Keyring(keyringSerialization);
+        return new UserProfile({ createdAt, keyring });
+      default:
+        throw new Error(`Unsupported format version: ${formatVersion.toNumber()}`);
+    }
   }
 
   public readonly createdAt: ReadonlyDate;
   public readonly locked: ValueAndUpdates<boolean>;
-  public readonly entriesCount: ValueAndUpdates<number>;
-  public readonly entryLabels: ValueAndUpdates<ReadonlyArray<string | undefined>>;
-  public readonly entryIds: ValueAndUpdates<ReadonlyArray<KeyringEntryId>>;
+  public readonly wallets: ValueAndUpdates<ReadonlyArray<WalletInfo>>;
 
   // Never pass the keyring reference to ensure the keyring is not retained after lock()
   // tslint:disable-next-line:readonly-keyword
   private keyring: Keyring | undefined;
   private readonly lockedProducer: DefaultValueProducer<boolean>;
-  private readonly entriesCountProducer: DefaultValueProducer<number>;
-  private readonly entryLabelsProducer: DefaultValueProducer<ReadonlyArray<string | undefined>>;
-  private readonly entryIdsProducer: DefaultValueProducer<ReadonlyArray<KeyringEntryId>>;
+  private readonly walletsProducer: DefaultValueProducer<ReadonlyArray<WalletInfo>>;
 
   // Stores a copy of keyring
   constructor(options?: UserProfileOptions) {
@@ -119,14 +99,8 @@ export class UserProfile {
 
     this.lockedProducer = new DefaultValueProducer(false);
     this.locked = new ValueAndUpdates(this.lockedProducer);
-    // TODO: we really need to clean this up and rethink what we expose where
-    // but that would be a breaking change... let's aim for 0.6
-    this.entriesCountProducer = new DefaultValueProducer(this.keyring.getEntries().length);
-    this.entriesCount = new ValueAndUpdates(this.entriesCountProducer);
-    this.entryLabelsProducer = new DefaultValueProducer(UserProfile.labels(this.keyring.getEntries()));
-    this.entryLabels = new ValueAndUpdates(this.entryLabelsProducer);
-    this.entryIdsProducer = new DefaultValueProducer(UserProfile.ids(this.keyring.getEntries()));
-    this.entryIds = new ValueAndUpdates(this.entryIdsProducer);
+    this.walletsProducer = new DefaultValueProducer(this.walletInfos());
+    this.wallets = new ValueAndUpdates(this.walletsProducer);
   }
 
   // this will clear everything in the database and store the user profile
@@ -138,24 +112,16 @@ export class UserProfile {
     await DatabaseUtils.clear(db);
 
     // process
-    const encryptionKey = (await Argon2id.execute(
-      password,
-      userProfileSalt,
-      weakPasswordHashingOptions,
-    )) as Xchacha20poly1305IetfKey;
-    const keyringPlaintext = toUtf8(this.keyring.serialize()) as Xchacha20poly1305IetfMessage;
-    const keyringNonce = await UserProfile.makeNonce();
-    const keyringCiphertext = await Xchacha20poly1305Ietf.encrypt(
-      keyringPlaintext,
-      encryptionKey,
-      keyringNonce,
-    );
+    const encryptionKey = await Argon2id.execute(password, userProfileSalt, weakPasswordHashingOptions);
+    const encryptedKeyring = await KeyringEncryptor.encrypt(this.keyring.serialize(), encryptionKey);
 
     // create storage values (raw strings)
+    const formatVersionForStorage = "1";
     const createdAtForStorage = toRfc3339(this.createdAt);
-    const keyringForStorage = toBase64(new Uint8Array([...keyringNonce, ...keyringCiphertext]));
+    const keyringForStorage = toBase64(encryptedKeyring);
 
     // store
+    await db.put(storageKeyFormatVersion, formatVersionForStorage);
     await db.put(storageKeyCreatedAt, createdAtForStorage);
     await db.put(storageKeyKeyring, keyringForStorage);
   }
@@ -166,67 +132,65 @@ export class UserProfile {
     this.lockedProducer.update(true);
   }
 
-  // Adds a copy of the entry to the primary keyring
-  public addEntry(entry: KeyringEntry): void {
+  /**
+   * Adds a copy of the wallet to the primary keyring
+   */
+  public addWallet(wallet: Wallet): WalletInfo {
     if (!this.keyring) {
       throw new Error("UserProfile is currently locked");
     }
 
-    const copy = entry.clone();
+    const copy = wallet.clone();
     this.keyring.add(copy);
-    this.entriesCountProducer.update(this.keyring.getEntries().length);
-    this.entryLabelsProducer.update(UserProfile.labels(this.keyring.getEntries()));
-    this.entryIdsProducer.update(UserProfile.ids(this.keyring.getEntries()));
+    this.walletsProducer.update(this.walletInfos());
+    return {
+      id: copy.id,
+      label: copy.label.value,
+    };
   }
 
-  // sets the label of the n-th keyring entry of the primary keyring
-  public setEntryLabel(id: number | KeyringEntryId, label: string | undefined): void {
-    const entry = this.entryInPrimaryKeyring(id);
-    entry.setLabel(label);
-
-    if (!this.keyring) {
-      throw new Error("UserProfile is currently locked");
-    }
-    this.entryLabelsProducer.update(UserProfile.labels(this.keyring.getEntries()));
+  /** Sets the label of the wallet with the given ID in the primary keyring  */
+  public setWalletLabel(id: WalletId, label: string | undefined): void {
+    const wallet = this.findWalletInPrimaryKeyring(id);
+    wallet.setLabel(label);
+    this.walletsProducer.update(this.walletInfos());
   }
 
-  // creates an identitiy in the n-th keyring entry of the primary keyring
-  public async createIdentity(id: number | KeyringEntryId, options?: any): Promise<LocalIdentity> {
-    const entry = this.entryInPrimaryKeyring(id);
-    return entry.createIdentity(options);
+  /** Creates an identitiy in the wallet with the given ID in the primary keyring */
+  public async createIdentity(
+    id: WalletId,
+    options: Ed25519Wallet | ReadonlyArray<Slip10RawIndex> | number,
+  ): Promise<LocalIdentity> {
+    const wallet = this.findWalletInPrimaryKeyring(id);
+    return wallet.createIdentity(options);
   }
 
-  // assigns a new label to one of the identities
-  // in the n-th keyring entry of the primary keyring
-  public setIdentityLabel(
-    id: number | KeyringEntryId,
-    identity: PublicIdentity,
-    label: string | undefined,
-  ): void {
-    const entry = this.entryInPrimaryKeyring(id);
-    entry.setIdentityLabel(identity, label);
+  /** Assigns a label to one of the identities in the wallet with the given ID in the primary keyring */
+  public setIdentityLabel(id: WalletId, identity: PublicIdentity, label: string | undefined): void {
+    const wallet = this.findWalletInPrimaryKeyring(id);
+    wallet.setIdentityLabel(identity, label);
   }
 
-  // get identities of the n-th keyring entry of the primary keyring
-  public getIdentities(id: number | KeyringEntryId): ReadonlyArray<LocalIdentity> {
-    const entry = this.entryInPrimaryKeyring(id);
-    return entry.getIdentities();
+  /** Get identities of the wallet with the given ID in the primary keyring  */
+  public getIdentities(id: WalletId): ReadonlyArray<LocalIdentity> {
+    const wallet = this.findWalletInPrimaryKeyring(id);
+    return wallet.getIdentities();
   }
 
   public async signTransaction(
-    id: number | KeyringEntryId,
+    id: WalletId,
     identity: PublicIdentity,
     transaction: UnsignedTransaction,
     codec: TxCodec,
     nonce: Nonce,
   ): Promise<SignedTransaction> {
-    const entry = this.entryInPrimaryKeyring(id);
+    const wallet = this.findWalletInPrimaryKeyring(id);
 
     const { bytes, prehashType } = codec.bytesToSign(transaction, nonce);
     const signature: FullSignature = {
-      publicKey: identity.pubkey,
+      pubkey: identity.pubkey,
       nonce: nonce,
-      signature: await entry.createTransactionSignature(identity, bytes, prehashType, transaction.chainId),
+      signature: await wallet.createTransactionSignature(identity, bytes, prehashType, transaction.chainId),
     };
 
     return {
@@ -237,19 +201,19 @@ export class UserProfile {
   }
 
   public async appendSignature(
-    id: number | KeyringEntryId,
+    id: WalletId,
     identity: PublicIdentity,
     originalTransaction: SignedTransaction,
     codec: TxCodec,
     nonce: Nonce,
   ): Promise<SignedTransaction> {
-    const entry = this.entryInPrimaryKeyring(id);
+    const wallet = this.findWalletInPrimaryKeyring(id);
 
     const { bytes, prehashType } = codec.bytesToSign(originalTransaction.transaction, nonce);
     const newSignature: FullSignature = {
-      publicKey: identity.pubkey,
+      pubkey: identity.pubkey,
       nonce: nonce,
-      signature: await entry.createTransactionSignature(
+      signature: await wallet.createTransactionSignature(
         identity,
         bytes,
         prehashType,
@@ -263,18 +227,42 @@ export class UserProfile {
     };
   }
 
-  private entryInPrimaryKeyring(id: number | KeyringEntryId): KeyringEntry {
+  /**
+   * Exposes the secret data of a wallet in a printable format for
+   * backup purposes.
+   *
+   * The format depends on the implementation and may change over time,
+   * so do not try to parse the result or make any kind of assumtions on
+   * how the result looks like.
+   */
+  public printableSecret(id: WalletId): string {
+    const wallet = this.findWalletInPrimaryKeyring(id);
+    return wallet.printableSecret();
+  }
+
+  /** Throws if wallet does not exist in primary keyring */
+  private findWalletInPrimaryKeyring(id: WalletId): Wallet {
     if (!this.keyring) {
       throw new Error("UserProfile is currently locked");
     }
 
-    const entry = typeof id === "number" ? this.keyring.getEntryByIndex(id) : this.keyring.getEntryById(id);
+    const wallet = this.keyring.getWallet(id);
 
-    if (!entry) {
-      const kind = typeof id === "number" ? "index" : "id";
-      throw new Error(`Entry of ${kind} ${id} does not exist in keyring`);
+    if (!wallet) {
+      throw new Error(`Wallet of id '${id}' does not exist in keyring`);
     }
 
-    return entry;
+    return wallet;
+  }
+
+  private walletInfos(): ReadonlyArray<WalletInfo> {
+    if (!this.keyring) {
+      throw new Error("UserProfile is currently locked");
+    }
+
+    return this.keyring.getWallets().map(wallet => ({
+      id: wallet.id,
+      label: wallet.label.value,
+    }));
   }
 }

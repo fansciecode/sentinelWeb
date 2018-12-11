@@ -6,9 +6,12 @@ import * as requests from "./requests";
 import * as responses from "./responses";
 import { RpcClient } from "./rpcclient";
 import { v0_20 as v0_20_ } from "./v0-20";
+import { v0_25 as v0_25_ } from "./v0-25";
 
 // tslint:disable-next-line:variable-name
 export const v0_20: Adaptor = v0_20_;
+// tslint:disable-next-line:variable-name
+export const v0_25: Adaptor = v0_25_;
 
 export interface Adaptor {
   readonly params: Params;
@@ -61,24 +64,36 @@ export interface Responses {
   readonly decodeTxEvent: (response: JsonRpcEvent) => responses.TxEvent;
 }
 
+/**
+ * Returns an Adaptor implementation for a given tendermint version.
+ * Throws when version is not supported.
+ *
+ * @param version full Tendermint version string, e.g. "0.20.1"
+ */
+export function adatorForVersion(version: string): Adaptor {
+  if (version.startsWith("0.20.")) {
+    return v0_20;
+  } else if (version.startsWith("0.21.")) {
+    return v0_20;
+  } else if (version.startsWith("0.25.")) {
+    return v0_25;
+  } else {
+    throw new Error(`Unsupported tendermint version: ${version}`);
+  }
+}
+
 // findAdaptor makes a status call with the client.
 // if we cannot talk to the server or make sense of the response, throw an error
 // otherwise, grab the tendermint version from the response and
 // provide a compatible adaptor if available.
 // throws an error if we don't support this version of tendermint
-export const findAdaptor = async (client: RpcClient): Promise<Adaptor> => {
-  const req = jsonRpcWith(requests.Method.STATUS);
+export async function findAdaptor(client: RpcClient): Promise<Adaptor> {
+  const req = jsonRpcWith(requests.Method.Status);
   const response = await client.execute(req);
   const result = response.result;
 
   if (!result || !result.node_info) {
     throw new Error("Unrecognized format for status response");
   }
-  const version: string = result.node_info.version;
-  if (version.startsWith("0.20.")) {
-    return v0_20;
-  } else if (version.startsWith("0.21.")) {
-    return v0_20;
-  }
-  throw new Error(`Unsupported tendermint version: ${version}`);
-};
+  return adatorForVersion(result.node_info.version);
+}

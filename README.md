@@ -92,28 +92,41 @@ a test server to run and are skipped by default. If you are working on those
 packages, please run those tests. (They require docker to be installed and
 executable by the current user)
 
+#### Tendermint
+
 ```
-source ./scripts/blockchain_start.sh
+./scripts/tendermint/start.sh
+export TENDERMINT_ENABLED=1
+
 cd packages/iov-tendermint-rpc
 yarn test
-cd ../iov-bns
-yarn test
 cd ../..
-source ./scripts/blockchain_stop.sh
+
+unset TENDERMINT_ENABLED
+./scripts/tendermint/stop.sh
 ```
 
-This is to try out, you can just go into the one package you work on,
-start blockchain, run integration tests, and stop it. If you are
-wondering about the magic, note that
-`blockchain_start.sh` sets TENDERMINT_ENABLED=1 and BOV_ENABLED=1
-to enable running the full integration tests.
+#### BNSD
 
-If you are working on `iov-lisk`, you can run the tests against
-the lisk testnet. Just be aware they can be very slow....
+```
+./scripts/bnsd/start.sh
+export BNSD_ENABLED=1
+
+cd packages/iov-bns
+yarn test
+cd ../..
+
+unset BNSD_ENABLED
+./scripts/bnsd/stop.sh
+```
+
+If you are working on `iov-lisk`, you can run the tests against a local
+Lisk devnet. See [scripts/lisk/README.md](https://github.com/iov-one/iov-core/tree/master/scripts/lisk#start)
+how to start the Lisk devnet.
 
 ```
 cd packages/iov-lisk
-LONG_RUNNING_ENABLED=1 yarn test
+yarn test
 ```
 
 ### Browser tests
@@ -161,16 +174,8 @@ If you are running on linux, you may not have the proper dependencies installed.
 following: `sudo apt-get install libudev-dev libusb-1.0-0 libusb-1.0-0-dev`.
 These are needed to compile the usb driver.
 
-Currently, Libusb requires node-pre-gyp version `0.10.2` or lower to compile properly. If for some reason
-your dependency is `0.10.3` or higher, you may have issues. Its recommended to use only `0.10.2` until
-the compilation issues are fixed in the `node-pre-gyp` package. This package comes as a dependency of
-`@ledger/hw-transport-node-hid` and is not easily modifiable by our team. Once the issues are resolved,
-the hard requirement of this dependency will be removed to allow it to be synchronized with the packages
-that require it.
-
-If `node-pre-gyp` keeps giving issues compiling this library, you may want to switch to node 8.
-There have been some reported issues on node `10.6.0` even after this, all around compiling node-usb
-for the ledger transport.
+Sometimes compiling native code with `node-pre-gyp` causes issues in very
+recent versions of Node.js. At the moment, Node.js 8, 10 and 11 should work.
 
 ### My PR works but the CI rejects it
 

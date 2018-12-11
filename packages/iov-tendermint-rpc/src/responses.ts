@@ -1,8 +1,8 @@
-// tslint:disable:no-empty-interface
 import { ReadonlyDate } from "readonly-date";
 
-import { ChainId, PostableBytes, PublicKeyBundle, SignatureBundle, TxId } from "@iov/tendermint-types";
+import { Algorithm, ChainId, PostableBytes, PublicKeyBundle, SignatureBytes } from "@iov/base-types";
 
+import { TxHash } from "./common";
 import { IpPortString } from "./encodings";
 
 export type Response =
@@ -57,22 +57,37 @@ export interface BlockchainResponse {
   readonly blockMetas: ReadonlyArray<BlockMeta>;
 }
 
-export type BroadcastTxAsyncResponse = BroadcastTxSyncResponse;
+/** No data in here because RPC method BroadcastTxAsync "returns right away, with no response" */
+export interface BroadcastTxAsyncResponse {}
+
 export interface BroadcastTxSyncResponse extends TxData {
-  readonly hash: Uint8Array;
+  readonly hash: TxHash;
+}
+
+/**
+ * Returns true iff transaction made it sucessfully into the transaction pool
+ */
+export function broadcastTxSyncSuccess(res: BroadcastTxSyncResponse): boolean {
+  // code must be 0 on success
+  return res.code === 0;
 }
 
 export interface BroadcastTxCommitResponse {
   readonly height?: number;
-  readonly hash: TxId;
+  readonly hash: TxHash;
   readonly checkTx: TxData;
   readonly deliverTx?: TxData;
 }
 
-// note that deliverTx may be present but empty on failure
-// code must be 0 on success
-export const txCommitSuccess = (res: BroadcastTxCommitResponse): boolean =>
-  res.checkTx.code === 0 && !!res.deliverTx && res.deliverTx.code === 0;
+/**
+ * Returns true iff transaction made it sucessfully into a block
+ * (i.e. sucess in `check_tx` and `deliver_tx` field)
+ */
+export function broadcastTxCommitSuccess(res: BroadcastTxCommitResponse): boolean {
+  // code must be 0 on success
+  // deliverTx may be present but empty on failure
+  return res.checkTx.code === 0 && !!res.deliverTx && res.deliverTx.code === 0;
+}
 
 export interface CommitResponse {
   readonly header: Header;
@@ -102,7 +117,7 @@ export interface TxResponse {
   readonly txResult: TxData;
   readonly height: number;
   readonly index: number;
-  readonly hash: TxId;
+  readonly hash: TxHash;
   readonly proof?: TxProof;
 }
 
@@ -124,7 +139,7 @@ export interface NewBlockHeaderEvent extends Header {}
 
 export interface TxEvent {
   readonly tx: PostableBytes;
-  readonly hash: TxId;
+  readonly hash: TxHash;
   readonly height: number;
   readonly index: number;
   readonly result: TxData;
@@ -200,6 +215,11 @@ export const enum VoteType {
   PRECOMMIT = 2,
 }
 
+export interface VoteSignatureBundle {
+  readonly algo: Algorithm;
+  readonly signature: SignatureBytes;
+}
+
 export interface Vote {
   readonly type: VoteType;
   readonly validatorAddress: Uint8Array;
@@ -208,7 +228,7 @@ export interface Vote {
   readonly round: number;
   readonly timestamp: ReadonlyDate;
   readonly blockId: BlockId;
-  readonly signature: SignatureBundle;
+  readonly signature: VoteSignatureBundle;
 }
 
 export interface Header {
@@ -258,15 +278,16 @@ export interface Validator {
 
 export interface ConsensusParams {
   readonly blockSizeParams: BlockSizeParams;
-  readonly txSizeParams: TxSizeParams;
-  readonly blockGossipParams: BlockGossipParams;
   readonly evidenceParams: EvidenceParams;
+  // no longer exist in 0.25
+  readonly txSizeParams?: TxSizeParams;
+  readonly blockGossipParams?: BlockGossipParams;
 }
 
 export interface BlockSizeParams {
   readonly maxBytes: number;
-  readonly maxTxs: number;
   readonly maxGas: number;
+  readonly maxTxs?: number; // no longer exists in 0.25
 }
 
 export interface TxSizeParams {

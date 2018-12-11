@@ -1,5 +1,6 @@
 // tslint:disable:no-console
 import { JsonRpcEvent, jsonRpcWith } from "./common";
+import { Integer } from "./encodings";
 import { Method } from "./requests";
 import { HttpClient, HttpUriClient, instanceOfRpcStreamingClient, RpcClient, WebsocketClient } from "./rpcclient";
 
@@ -17,12 +18,12 @@ function pendingWithoutTendermint(): void {
 }
 
 async function shouldPass(client: RpcClient): Promise<void> {
-  const req = jsonRpcWith(Method.HEALTH);
+  const req = jsonRpcWith(Method.Health);
   const res = await client.execute(req);
   // expect(res.id).toEqual(req.id);
   expect(res.result).toEqual({});
 
-  const req2 = jsonRpcWith(Method.STATUS);
+  const req2 = jsonRpcWith(Method.Status);
   const res2 = await client.execute(req2);
   // expect(res2.id).toEqual(req2.id);
   expect(res2.result).toBeTruthy();
@@ -55,7 +56,7 @@ describe("RpcClient", () => {
   it("should also work with trailing slashes", async () => {
     pendingWithoutTendermint();
 
-    const status = jsonRpcWith(Method.STATUS);
+    const status = jsonRpcWith(Method.Status);
 
     const http = new HttpClient(tendermintUrl + "/");
     expect(await http.execute(status)).toBeDefined();
@@ -121,7 +122,7 @@ describe("RpcClient", () => {
 
           if (events.length === 2) {
             // make sure they are consequtive heights
-            const height = (i: number) => (events[i].data.value as any).header.height as number;
+            const height = (i: number) => Integer.parse((events[i].data.value as any).header.height);
             expect(height(1)).toEqual(height(0) + 1);
 
             sub.unsubscribe();
@@ -167,7 +168,7 @@ describe("RpcClient", () => {
         },
       });
 
-      const startusResponse = client.execute(jsonRpcWith(Method.STATUS));
+      const startusResponse = client.execute(jsonRpcWith(Method.Status));
       expect(startusResponse).toBeTruthy();
     });
 
@@ -200,11 +201,11 @@ describe("RpcClient", () => {
 
       const client = new WebsocketClient(tendermintUrl);
       // dummy command to ensure client is connected
-      await client.execute(jsonRpcWith(Method.HEALTH));
+      await client.execute(jsonRpcWith(Method.Health));
 
       client.disconnect();
 
-      const req = jsonRpcWith(Method.HEALTH);
+      const req = jsonRpcWith(Method.Health);
       await client
         .execute(req)
         .then(fail)
@@ -218,7 +219,7 @@ describe("RpcClient", () => {
       (async () => {
         const client = new WebsocketClient(tendermintUrl);
         // dummy command to ensure client is connected
-        await client.execute(jsonRpcWith(Method.HEALTH));
+        await client.execute(jsonRpcWith(Method.Health));
 
         client.disconnect();
 
@@ -239,7 +240,7 @@ describe("RpcClient", () => {
       pendingWithoutTendermint();
 
       const ws = new WebsocketClient(tendermintUrl);
-      const req = jsonRpcWith(Method.HEALTH);
+      const req = jsonRpcWith(Method.Health);
       expect(() => ws.listen(req)).toThrowError(/request method must be "subscribe"/i);
     });
   });

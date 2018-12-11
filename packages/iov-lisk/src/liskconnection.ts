@@ -1,26 +1,43 @@
 import axios from "axios";
+import equal from "fast-deep-equal";
 import { ReadonlyDate } from "readonly-date";
 import { Stream } from "xstream";
 
+import { ChainId, PostableBytes } from "@iov/base-types";
 import {
+  Address,
   BcpAccount,
   BcpAccountQuery,
+  BcpAddressQuery,
+  BcpBlockInfo,
   BcpConnection,
-  BcpNonce,
+  BcpPubkeyQuery,
   BcpQueryEnvelope,
   BcpTicker,
-  BcpTransactionResponse,
+  BcpTransactionState,
+  BcpTxQuery,
+  BlockHeader,
+  BlockId,
   ConfirmedTransaction,
   dummyEnvelope,
   isAddressQuery,
+  isPubkeyQuery,
   Nonce,
+  PostTxResponse,
   TokenTicker,
+  TransactionId,
 } from "@iov/bcp-types";
-import { Encoding } from "@iov/encoding";
-import { Algorithm, ChainId, PostableBytes, PublicKeyBytes, Tag, TxId, TxQuery } from "@iov/tendermint-types";
+import { Parse } from "@iov/dpos";
+import { Encoding, Int53, Uint53, Uint64 } from "@iov/encoding";
+import { DefaultValueProducer, ValueAndUpdates } from "@iov/stream";
 
 import { constants } from "./constants";
-import { Parse } from "./parse";
+import { liskCodec } from "./liskcodec";
+
+const { toUtf8 } = Encoding;
+
+// poll every 3 seconds (block time 10s)
+const transactionStatePollInterval = 3_000;
 
 /**
  * Encodes the current date and time as a nonce
@@ -79,129 +96,202 @@ export class LiskConnection implements BcpConnection {
     return responseBody.data.height;
   }
 
-  public async postTx(bytes: PostableBytes): Promise<BcpTransactionResponse> {
-    const transactionId = JSON.parse(Encoding.fromUtf8(bytes)).id as string;
+  public async postTx(bytes: PostableBytes): Promise<PostTxResponse> {
+    const transactionId = JSON.parse(Encoding.fromUtf8(bytes)).id as TransactionId;
     if (!transactionId.match(/^[0-9]+$/)) {
       throw new Error("Invalid transaction ID");
     }
 
-    await axios.post(this.baseUrl + "/api/transactions", bytes, {
+    const response = await axios.post(this.baseUrl + "/api/transactions", bytes, {
       headers: {
         "Content-Type": "application/json",
       },
     });
 
-    // Sleep some seconds to ensure transaction will be found.
-    // Sleep duration determined by trial and error. 15 seconds was not enough.
-    await new Promise(resolve => setTimeout(resolve, 24 * 1000));
-
-    const result = await axios.get(this.baseUrl + `/api/transactions?id=${transactionId}`);
-    const responseBody = result.data;
-
-    let height: number | undefined;
-    let transactionResultBytes: Uint8Array | undefined;
-    if (responseBody.meta.count === 1) {
-      const transactionResult = responseBody.data[0];
-      height = transactionResult.height;
-      transactionResultBytes = Encoding.toUtf8(JSON.stringify(transactionResult));
+    if (typeof response.data.meta.status !== "boolean" || response.data.meta.status !== true) {
+      throw new Error("Did not get meta.status: true");
     }
 
+    let blockInfoInterval: any;
+    let lastEventSent: BcpBlockInfo | undefined;
+    const blockInfoProducer = new DefaultValueProducer<BcpBlockInfo>(
+      {
+        state: BcpTransactionState.Pending,
+      },
+      {
+        onStarted: () => {
+          blockInfoInterval = setInterval(async () => {
+            const search = await this.searchTx({ id: transactionId });
+            if (search.length > 0) {
+              const confirmedTransaction = search[0];
+              const event: BcpBlockInfo = {
+                state: BcpTransactionState.InBlock,
+                height: confirmedTransaction.height,
+                confirmations: confirmedTransaction.confirmations,
+              };
+
+              if (!equal(event, lastEventSent)) {
+                blockInfoProducer.update(event);
+                lastEventSent = event;
+              }
+            }
+          }, transactionStatePollInterval);
+        },
+        onStop: () => clearInterval(blockInfoInterval),
+      },
+    );
+
     return {
-      metadata: {
-        status: true, // commit failures should throw
-        height: height,
-      },
-      data: {
-        message: "",
-        txid: Encoding.toAscii(transactionId) as TxId,
-        result: transactionResultBytes || new Uint8Array([]),
-      },
+      blockInfo: new ValueAndUpdates(blockInfoProducer),
+      transactionId: transactionId,
     };
   }
 
-  public getTicker(_: TokenTicker): Promise<BcpQueryEnvelope<BcpTicker>> {
-    throw new Error("Not implemented");
+  public async getTicker(searchTicker: TokenTicker): Promise<BcpQueryEnvelope<BcpTicker>> {
+    const results = (await this.getAllTickers()).data.filter(t => t.tokenTicker === searchTicker);
+    return dummyEnvelope(results);
   }
 
-  public getAllTickers(): Promise<BcpQueryEnvelope<BcpTicker>> {
-    throw new Error("Not implemented");
+  public async getAllTickers(): Promise<BcpQueryEnvelope<BcpTicker>> {
+    const tickers: ReadonlyArray<BcpTicker> = [
+      {
+        tokenTicker: constants.primaryTokenTicker,
+        tokenName: constants.primaryTokenName,
+      },
+    ];
+    return dummyEnvelope(tickers);
   }
 
   public async getAccount(query: BcpAccountQuery): Promise<BcpQueryEnvelope<BcpAccount>> {
+    let address: Address;
     if (isAddressQuery(query)) {
-      const address = query.address;
-      const url = this.baseUrl + `/api/accounts?address=${Encoding.fromAscii(address)}`;
-      const result = await axios.get(url);
-      const responseBody = result.data;
-
-      // here we are expecting 0 or 1 results
-      const accounts: ReadonlyArray<BcpAccount> = responseBody.data.map(
-        (item: any): BcpAccount => ({
-          address: address,
-          name: undefined,
-          balance: [
-            {
-              sigFigs: constants.primaryTokenSigFigs,
-              tokenName: constants.primaryTokenName,
-              ...Parse.liskAmount(item.balance),
-            },
-          ],
-        }),
-      );
-      return dummyEnvelope(accounts);
+      address = query.address;
+    } else if (isPubkeyQuery(query)) {
+      address = liskCodec.keyToAddress(query.pubkey);
     } else {
       throw new Error("Query type not supported");
     }
-  }
+    const url = this.baseUrl + `/api/accounts?address=${address}`;
+    const result = await axios.get(url);
+    const responseBody = result.data;
 
-  public getNonce(query: BcpAccountQuery): Promise<BcpQueryEnvelope<BcpNonce>> {
-    if (isAddressQuery(query)) {
-      const address = query.address;
-
-      const nonce: BcpNonce = {
+    // here we are expecting 0 or 1 results
+    const accounts: ReadonlyArray<BcpAccount> = responseBody.data.map(
+      (item: any): BcpAccount => ({
         address: address,
-        // fake pubkey, we cannot always know this
-        publicKey: {
-          algo: Algorithm.ED25519,
-          data: new Uint8Array([]) as PublicKeyBytes,
-        },
-        nonce: generateNonce(),
-      };
-
-      const out: BcpQueryEnvelope<BcpNonce> = {
-        metadata: {
-          offset: 0,
-          limit: 0,
-        },
-        data: [nonce],
-      };
-      return Promise.resolve(out);
-    } else {
-      throw new Error("Query type not supported");
-    }
+        name: undefined,
+        balance: [
+          {
+            quantity: Parse.parseQuantity(item.balance),
+            fractionalDigits: constants.primaryTokenFractionalDigits,
+            tokenName: constants.primaryTokenName,
+            tokenTicker: constants.primaryTokenTicker,
+          },
+        ],
+      }),
+    );
+    return dummyEnvelope(accounts);
   }
 
-  public changeBlock(): Stream<number> {
-    throw new Error("Not implemented");
+  public getNonce(_: BcpAddressQuery | BcpPubkeyQuery): Promise<BcpQueryEnvelope<Nonce>> {
+    return Promise.resolve(dummyEnvelope([generateNonce()]));
   }
 
   public watchAccount(_: BcpAccountQuery): Stream<BcpAccount | undefined> {
     throw new Error("Not implemented");
   }
 
-  public watchNonce(_: BcpAccountQuery): Stream<BcpNonce | undefined> {
+  public watchNonce(_: BcpAddressQuery | BcpPubkeyQuery): Stream<Nonce | undefined> {
     throw new Error("Not implemented");
   }
 
-  public searchTx(_: TxQuery): Promise<ReadonlyArray<ConfirmedTransaction>> {
+  public async getBlockHeader(height: number): Promise<BlockHeader> {
+    let integerHeight: Uint53;
+    try {
+      integerHeight = new Uint53(height);
+    } catch {
+      throw new Error("Height must be a non-negative safe integer");
+    }
+
+    const url = this.baseUrl + `/api/blocks?height=${integerHeight.toNumber()}`;
+    const result = await axios.get(url);
+    const responseBody = result.data;
+
+    if (!responseBody.data || typeof responseBody.data.length !== "number") {
+      throw new Error("Expected a list of blocks but got something different.");
+    }
+
+    if (responseBody.data.length === 0) {
+      throw new Error("Block does not exist");
+    }
+
+    if (responseBody.data.length !== 1) {
+      throw new Error("Got unexpected number of block");
+    }
+
+    const blockJson = responseBody.data[0];
+    const blockId = Uint64.fromString(blockJson.id).toString() as BlockId;
+    const blockHeight = new Uint53(blockJson.height).toNumber();
+    const blockTime = Parse.fromTimestamp(blockJson.timestamp);
+    const transactionCount = new Uint53(blockJson.numberOfTransactions).toNumber();
+
+    return {
+      id: blockId,
+      height: blockHeight,
+      time: blockTime,
+      transactionCount: transactionCount,
+    };
+  }
+
+  public watchBlockHeaders(): Stream<BlockHeader> {
     throw new Error("Not implemented");
   }
 
-  public listenTx(_: ReadonlyArray<Tag>): Stream<ConfirmedTransaction> {
+  /** @deprecated use watchBlockHeaders().map(header => header.height) */
+  public changeBlock(): Stream<number> {
+    return this.watchBlockHeaders().map(header => header.height);
+  }
+
+  public async searchTx(query: BcpTxQuery): Promise<ReadonlyArray<ConfirmedTransaction>> {
+    if (query.height || query.minHeight || query.maxHeight || query.tags) {
+      throw new Error("Query by height, minHeight, maxHeight, tags not supported");
+    }
+
+    if (query.id !== undefined) {
+      const url = this.baseUrl + `/api/transactions?id=${query.id}`;
+      const result = await axios.get(url);
+      const responseBody = result.data;
+      if (responseBody.data.length === 0) {
+        return [];
+      }
+
+      const transactionJson = responseBody.data[0];
+      const height = new Int53(transactionJson.height);
+      const confirmations = new Int53(transactionJson.confirmations);
+      const transactionId = Uint64.fromString(transactionJson.id).toString() as TransactionId;
+
+      const transaction = liskCodec.parseBytes(
+        toUtf8(JSON.stringify(transactionJson)) as PostableBytes,
+        this.myChainId,
+      );
+      return [
+        {
+          ...transaction,
+          height: height.toNumber(),
+          confirmations: confirmations.toNumber(),
+          transactionId: transactionId,
+        },
+      ];
+    } else {
+      throw new Error("Unsupported query.");
+    }
+  }
+
+  public listenTx(_: BcpTxQuery): Stream<ConfirmedTransaction> {
     throw new Error("Not implemented");
   }
 
-  public liveTx(_: TxQuery): Stream<ConfirmedTransaction> {
+  public liveTx(_: BcpTxQuery): Stream<ConfirmedTransaction> {
     throw new Error("Not implemented");
   }
 }

@@ -1,17 +1,105 @@
-import Long from "long";
+import * as Long from "long";
+import { As } from "type-tagger";
 
-import { BcpCoin,DeleteMasterNode,DeleteVpnUser, FullSignature, FungibleToken,GetVpnPayment,Nonce ,PayVpnService,Refund,RegisterMasterNode ,RegisterVpn ,SignToVpn,TokenTicker } from "@iov/bcp-types";
-import {
-  Algorithm,
-  PrivateKeyBundle,
-  PrivateKeyBytes,
-  PublicKeyBundle,
-  PublicKeyBytes,
-  SignatureBytes,
-} from "@iov/tendermint-types";
+import { Algorithm, ChainId, PublicKeyBundle, PublicKeyBytes, SignatureBytes } from "@iov/base-types";
+import { Address, ChainAddressPair, FullSignature, Nonce, TokenTicker } from "@iov/bcp-types";
+import { Int53 } from "@iov/encoding";
 
-import * as codecImpl from "./codecimpl";
-import { InitData } from "./normalize";
+import * as codecImpl from "./generated/codecimpl";
+
+// NFTs
+
+/** raw address type used to encode NFT owners */
+export type BnsAddressBytes = Uint8Array & As<"bns-address-bytes">;
+
+// blockchain NFT
+
+export interface BnsBlockchainNft {
+  readonly id: string;
+  readonly owner: BnsAddressBytes;
+  /**
+   * The registered chain information
+   *
+   * Fields as defined in https://github.com/iov-one/bns-spec/blob/master/docs/data/ObjectDefinitions.rst#chain
+   */
+  readonly chain: {
+    readonly chainId: ChainId;
+    readonly name: string;
+    readonly enabled: boolean;
+    readonly production: boolean;
+    readonly networkId: string | undefined;
+    readonly mainTickerId: TokenTicker | undefined;
+  };
+  readonly codecName: string;
+  readonly codecConfig: string;
+}
+
+export interface BnsBlockchainsByChainIdQuery {
+  readonly chainId: ChainId;
+}
+
+export type BnsBlockchainsQuery = BnsBlockchainsByChainIdQuery;
+
+export function isBnsBlockchainsByChainIdQuery(
+  query: BnsBlockchainsQuery,
+): query is BnsBlockchainsByChainIdQuery {
+  return typeof (query as BnsBlockchainsByChainIdQuery).chainId !== "undefined";
+}
+
+// username NFT
+
+export interface BnsUsernameNft {
+  readonly id: string;
+  readonly owner: BnsAddressBytes;
+  readonly addresses: ReadonlyArray<ChainAddressPair>;
+}
+
+export interface BnsUsernamesByUsernameQuery {
+  readonly username: string;
+}
+
+export interface BnsUsernamesByOwnerAddressQuery {
+  readonly owner: Address;
+}
+
+export interface BnsUsernamesByChainAndAddressQuery {
+  readonly chain: ChainId;
+  readonly address: Address;
+}
+
+export type BnsUsernamesQuery =
+  | BnsUsernamesByUsernameQuery
+  | BnsUsernamesByOwnerAddressQuery
+  | BnsUsernamesByChainAndAddressQuery;
+
+export function isBnsUsernamesByUsernameQuery(
+  query: BnsUsernamesQuery,
+): query is BnsUsernamesByUsernameQuery {
+  return typeof (query as BnsUsernamesByUsernameQuery).username !== "undefined";
+}
+
+export function isBnsUsernamesByOwnerAddressQuery(
+  query: BnsUsernamesQuery,
+): query is BnsUsernamesByOwnerAddressQuery {
+  return typeof (query as BnsUsernamesByOwnerAddressQuery).owner !== "undefined";
+}
+
+export function isBnsUsernamesByChainAndAddressQuery(
+  query: BnsUsernamesQuery,
+): query is BnsUsernamesByChainAndAddressQuery {
+  return (
+    typeof (query as BnsUsernamesByChainAndAddressQuery).chain !== "undefined" &&
+    typeof (query as BnsUsernamesByChainAndAddressQuery).address !== "undefined"
+  );
+}
+
+// Rest
+
+export type PrivateKeyBytes = Uint8Array & As<"private-key">;
+export interface PrivateKeyBundle {
+  readonly algo: Algorithm;
+  readonly data: PrivateKeyBytes;
+}
 
 export interface Result {
   readonly key: Uint8Array;
@@ -26,91 +114,27 @@ export interface Decoder<T extends {}> {
   readonly decode: (data: Uint8Array) => T;
 }
 
-export const encodeToken = (token: FungibleToken) =>
-  codecImpl.x.Coin.create({
-    // use null instead of 0 to not encode zero fields
-    // for compatibility with golang encoder
-    whole: token.whole || null,
-    fractional: token.fractional || null,
-    ticker: token.tokenTicker,
-  });
-export const encodeData = (data:  RegisterVpn | DeleteVpnUser | RegisterMasterNode | DeleteMasterNode | PayVpnService | GetVpnPayment | Refund | SignToVpn) =>
-  codecImpl.x.MsgData.create({
-    msgData :data.msgType,
-  
-  });
-export const encodeFullSig = (sig: FullSignature) =>
-  codecImpl.sigs.StdSignature.create({
-    sequence: sig.nonce,
-    pubKey: encodePubKey(sig.publicKey),
-    signature: encodeSignature(sig.publicKey.algo, sig.signature),
-  });
-
-export const encodePubKey = (publicKey: PublicKeyBundle) => {
-  switch (publicKey.algo) {
-    case Algorithm.ED25519:
-      return { ed25519: publicKey.data };
-    default:
-      throw new Error("unsupported algorithm: " + publicKey.algo);
-  }
-};
-
-export const encodePrivKey = (privateKey: PrivateKeyBundle) => {
-  switch (privateKey.algo) {
-    case Algorithm.ED25519:
-      return { ed25519: privateKey.data };
-    default:
-      throw new Error("unsupported algorithm: " + privateKey.algo);
-  }
-};
-
-// encodeSignature needs the Algorithm to determine the type
-export const encodeSignature = (algo: Algorithm, sigs: SignatureBytes) => {
-  switch (algo) {
-    case Algorithm.ED25519:
-      return { ed25519: sigs };
-    default:
-      throw new Error("unsupported algorithm: " + algo);
-  }
-};
-
-export const decodeToken = (token: codecImpl.x.ICoin): FungibleToken => ({
-  whole: asNumber(token.whole),
-  fractional: asNumber(token.fractional),
-  tokenTicker: (token.ticker || "") as TokenTicker,
-});
-
-export const fungibleToBcpCoin = (initData: InitData) => (token: FungibleToken): BcpCoin => {
-  const tickerInfo = initData.tickers.get(token.tokenTicker);
-  return {
-    ...token,
-    // Better defaults?
-    tokenName: tickerInfo ? tickerInfo.tokenName : "<Unknown token>",
-    sigFigs: tickerInfo ? tickerInfo.sigFigs : 9,
-  };
-};
-
-export const decodePubKey = (publicKey: codecImpl.crypto.IPublicKey): PublicKeyBundle => {
+export function decodePubkey(publicKey: codecImpl.crypto.IPublicKey): PublicKeyBundle {
   if (publicKey.ed25519) {
     return {
-      algo: Algorithm.ED25519,
+      algo: Algorithm.Ed25519,
       data: publicKey.ed25519 as PublicKeyBytes,
     };
   } else {
     throw new Error("Unknown public key algorithm");
   }
-};
+}
 
-export const decodePrivKey = (privateKey: codecImpl.crypto.IPrivateKey): PrivateKeyBundle => {
+export function decodePrivkey(privateKey: codecImpl.crypto.IPrivateKey): PrivateKeyBundle {
   if (privateKey.ed25519) {
     return {
-      algo: Algorithm.ED25519,
+      algo: Algorithm.Ed25519,
       data: privateKey.ed25519 as PrivateKeyBytes,
     };
   } else {
     throw new Error("Unknown private key algorithm");
   }
-};
+}
 
 export const decodeSignature = (signature: codecImpl.crypto.ISignature): SignatureBytes => {
   if (signature.ed25519) {
@@ -121,8 +145,8 @@ export const decodeSignature = (signature: codecImpl.crypto.ISignature): Signatu
 };
 
 export const decodeFullSig = (sig: codecImpl.sigs.IStdSignature): FullSignature => ({
-  nonce: asLong(sig.sequence) as Nonce,
-  publicKey: decodePubKey(ensure(sig.pubKey)),
+  nonce: asInt53(sig.sequence) as Nonce,
+  pubkey: decodePubkey(ensure(sig.pubkey)),
   signature: decodeSignature(ensure(sig.signature)),
 });
 
@@ -136,15 +160,15 @@ export const asNumber = (maybeLong: Long | number | null | undefined): number =>
   }
 };
 
-export const asLong = (maybeLong: Long | number | null | undefined): Long => {
-  if (!maybeLong) {
-    return Long.fromInt(0);
-  } else if (typeof maybeLong === "number") {
-    return Long.fromNumber(maybeLong);
+export function asInt53(input: Long | number | null | undefined): Int53 {
+  if (!input) {
+    return new Int53(0);
+  } else if (typeof input === "number") {
+    return new Int53(input);
   } else {
-    return maybeLong;
+    return Int53.fromString(input.toString());
   }
-};
+}
 
 export const ensure = <T>(maybe: T | null | undefined, msg?: string): T => {
   if (maybe === null || maybe === undefined) {

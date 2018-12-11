@@ -43,12 +43,13 @@ $ iov-cli
 
 ```
 > const profile = new UserProfile();
-> profile.addEntry(Ed25519SimpleAddressKeyringEntry.fromMnemonic("degree tackle suggest window test behind mesh extra cover prepare oak script"))
+> const wallet = Ed25519HdWallet.fromMnemonic("degree tackle suggest window test behind mesh extra cover prepare oak script")
+> profile.addWallet(wallet)
 
-> profile.getIdentities(0)
+> profile.getIdentities(wallet.id)
 []
 
-> const faucet = await profile.createIdentity(0)
+> const faucet = await profile.createIdentity(wallet.id, HdPaths.simpleAddress(0))
 
 > faucet.pubkey
 { algo: 'ed25519',
@@ -57,22 +58,22 @@ $ iov-cli
      224,
      42, ...
 
-> profile.setIdentityLabel(0, faucet, "blockchain of value faucet")
+> profile.setIdentityLabel(wallet.id, faucet, "blockchain of value faucet")
 
-> profile.getIdentities(0)
+> profile.getIdentities(wallet.id)
 [ { pubkey: { algo: 'ed25519', data: [Uint8Array] },
     label: 'blockchain of value faucet' } ]
 
-> const writer = new IovWriter(profile);
-> await writer.addChain(bnsConnector("ws://localhost:22345"));
-> const chainId = writer.chainIds()[0];
-> const reader = writer.reader(chainId);
+> const signer = new MultiChainSigner(profile);
+> await signer.addChain(bnsConnector("ws://localhost:22345"));
+> const chainId = signer.chainIds()[0];
+> const connection = signer.connection(chainId);
 
-> const faucetAddress = writer.keyToAddress(chainId, faucet.pubkey);
-> (await reader.getAccount({ address: faucetAddress })).data[0].balance
+> const faucetAddress = signer.keyToAddress(chainId, faucet.pubkey);
+> (await connection.getAccount({ address: faucetAddress })).data[0].balance
 
-> const recipient = await profile.createIdentity(0);
-> const recipientAddress = writer.keyToAddress(chainId, recipient.pubkey);
+> const recipient = await profile.createIdentity(wallet.id, HdPaths.simpleAddress(1));
+> const recipientAddress = signer.keyToAddress(chainId, recipient.pubkey);
 
 > .editor
 const sendTx: SendTx = {
@@ -88,40 +89,40 @@ const sendTx: SendTx = {
   },
 };
 ^D
-> await writer.signAndCommit(sendTx, 0);
-> (await reader.getAccount({ address: recipientAddress })).data[0].balance;
+> await signer.signAndPost(sendTx, 0);
+> (await connection.getAccount({ address: recipientAddress })).data[0].balance;
 
-> await reader.searchTx({ tags: [bnsFromOrToTag(faucetAddress)] });
-> await reader.searchTx({ tags: [bnsFromOrToTag(recipientAddress)] });
+> await connection.searchTx({ tags: [bnsFromOrToTag(faucetAddress)] });
+> await connection.searchTx({ tags: [bnsFromOrToTag(recipientAddress)] });
 ```
 
 3. Congratulations, you sent your first money!
-4. Add an additional entry
+4. Add an additional wallet
 
 ```
-> profile.entriesCount.value
-1
+> profile.wallets.value
+[ { id: 'ReYESw51lsOOr8_X', label: undefined } ]
 
-> profile.addEntry(Ed25519SimpleAddressKeyringEntry.fromMnemonic("organ wheat manage mirror wish truly tool trumpet since equip flight bracket"))
+> profile.addWallet(Ed25519HdWallet.fromMnemonic("organ wheat manage mirror wish truly tool trumpet since equip flight bracket"))
 
-> profile.entriesCount.value
-2
+> profile.wallets.value
+[ { id: 'ReYESw51lsOOr8_X', label: undefined },
+  { id: 'FtIcQqMWcRpEIruk', label: undefined } ]
 
-> profile.getIdentities(0)
-[ { pubkey: { algo: 'ed25519', data: [Object] },
-    label: undefined } ]
+> profile.getIdentities("ReYESw51lsOOr8_X" as WalletId)
+[ { pubkey: { algo: 'ed25519', data: [Uint8Array] },
+    label: 'blockchain of value faucet',
+    id: 'uul1wahs5te8fiaD' } ]
 
-> profile.getIdentities(1)
+> profile.getIdentities("FtIcQqMWcRpEIruk" as WalletId)
 []
 
-> profile.entryLabels.value
-[ undefined, undefined ]
+> profile.setWalletLabel("ReYESw51lsOOr8_X" as WalletId, "main")
+> profile.setWalletLabel("FtIcQqMWcRpEIruk" as WalletId, "second")
 
-> profile.setEntryLabel(0, "main")
-> profile.setEntryLabel(1, "second")
-
-> profile.entryLabels.value
-[ 'main', 'second' ]
+> profile.wallets.value
+[ { id: 'ReYESw51lsOOr8_X', label: 'main' },
+  { id: 'FtIcQqMWcRpEIruk', label: 'second' } ]
 ```
 
 5. Now store to disk
@@ -138,13 +139,13 @@ const sendTx: SendTx = {
 > profileFromDb
 UserProfile {
   createdAt: 2018-07-04T16:07:14.583Z,
-  keyring: Keyring { entries: [ [Object], [Object] ] },
+  keyring: Keyring { wallets: [ [Object], [Object] ] },
   ...
 ```
 
 ### Register a BNS name
 
-Assuming you have a `profile`, a `writer` and a `recipient` identity with
+Assuming you have a `profile`, a `signer` and a `recipient` identity with
 transactions associated from above
 
 ```
@@ -156,8 +157,8 @@ const setNameTx: SetNameTx = {
   name: "hans",
 };
 ^D
-> await writer.signAndCommit(setNameTx, 0);
-> (await reader.getAccount({ name: "hans" })).data[0]
+> await signer.signAndPost(setNameTx, wallet.id);
+> (await connection.getAccount({ name: "hans" })).data[0]
 { name: 'hans',
   address:
    Uint8Array [
@@ -169,62 +170,60 @@ const setNameTx: SetNameTx = {
 
 ### Disconnecting
 
-When you are done using a WebSocket connection, disconnect the reader
+When you are done using a WebSocket connection, disconnect the connection
 
 ```
-> (await reader.getAccount({ address: faucetAddress })).data[0].balance
+> (await connection.getAccount({ address: faucetAddress })).data[0].balance
 [ { whole: 123456789,
     fractional: 0,
     tokenTicker: 'CASH',
     tokenName: 'Main token of this chain',
-    sigFigs: 6 } ]
-> reader.disconnect()
+    fractionalDigits: 6 } ]
+> connection.disconnect()
 undefined
-> (await reader.getAccount({ address: faucetAddress })).data[0].balance
+> (await connection.getAccount({ address: faucetAddress })).data[0].balance
 Error: Socket was closed, so no data can be sent anymore.
     at ...
 ```
 
 ## Faucet usage
 
-When using a Testnet, you can use the BovFaucet to receive tokens:
+When using a Testnet, you can use the IovFaucet to receive tokens:
 
 ```
 > const mnemonic = Bip39.encode(await Random.getBytes(16)).asString();
 > mnemonic
 'helmet album grow detail apology thank wire chef fame core private cargo'
 > const profile = new UserProfile();
-> profile.addEntry(Ed25519SimpleAddressKeyringEntry.fromMnemonic(mnemonic));
-> const me = await profile.createIdentity(0);
+> const wallet = profile.addWallet(Ed25519HdWallet.fromMnemonic(mnemonic));
+> const me = await profile.createIdentity(wallet.id, HdPaths.simpleAddress(0));
 
-> const writer = new IovWriter(profile);
-> await writer.addChain(bnsConnector("https://bov.friendnet-slow.iov.one"));
-> const chainId = writer.chainIds()[0];
-> const reader = writer.reader(chainId);
-> const meAddress = writer.keyToAddress(chainId, me.pubkey);
+> const signer = new MultiChainSigner(profile);
+> const { connection } = await signer.addChain(bnsConnector("https://bns.yaknet.iov.one"));
+> const meAddress = signer.keyToAddress(connection.chainId(), me.pubkey);
 
-> const bovFaucet = new BovFaucet("https://faucet.friendnet-slow.iov.one/faucet");
+> const faucet = new IovFaucet("https://iov-faucet.yaknet.iov.one");
 
-> await bovFaucet.credit(meAddress)
-> (await reader.getAccount({ address: meAddress })).data[0].balance
+> await faucet.credit(meAddress, "IOV" as TokenTicker)
+> (await connection.getAccount({ address: meAddress })).data[0].balance
 [ { whole: 10,
     fractional: 0,
     tokenTicker: 'IOV',
     tokenName: 'Main token of this chain',
-    sigFigs: 6 } ]
+    fractionalDigits: 6 } ]
 
-> await bovFaucet.credit(meAddress, "PAJA" as TokenTicker)
-> (await reader.getAccount({ address: meAddress })).data[0].balance
+> await faucet.credit(meAddress, "PAJA" as TokenTicker)
+> (await connection.getAccount({ address: meAddress })).data[0].balance
 [ { whole: 10,
     fractional: 0,
     tokenTicker: 'IOV',
     tokenName: 'Main token of this chain',
-    sigFigs: 6 },
+    fractionalDigits: 6 },
   { whole: 10,
     fractional: 0,
     tokenTicker: 'PAJA',
     tokenName: 'Mightiest token of this chain',
-    sigFigs: 9 } ]
+    fractionalDigits: 9 } ]
 ```
 
 ## Ledger usage
@@ -232,21 +231,22 @@ When using a Testnet, you can use the BovFaucet to receive tokens:
 Do 1. and 2. like above
 
 ```
-> import { LedgerSimpleAddressKeyringEntry } from "@iov/ledger-bns";
+> import { LedgerSimpleAddressWallet } from "@iov/ledger-bns";
 > const profile = new UserProfile();
-> profile.addEntry(Ed25519SimpleAddressKeyringEntry.fromMnemonic("tell fresh liquid vital machine rhythm uncle tomato grow room vacuum neutral"))
-> const ledgerEntry = new LedgerSimpleAddressKeyringEntry();
-> ledgerEntry.startDeviceTracking();
-> profile.addEntry(ledgerEntry);
+> const wallet = Ed25519HdWallet.fromMnemonic("tell fresh liquid vital machine rhythm uncle tomato grow room vacuum neutral");
+> profile.addWallet(wallet)
+> const ledgerWallet = new LedgerSimpleAddressWallet();
+> ledgerWallet.startDeviceTracking();
+> profile.addWallet(ledgerWallet);
 
-> profile.getIdentities(0)
+> profile.getIdentities(wallet.id)
 []
 
-> profile.getIdentities(1)
+> profile.getIdentities(ledgerWallet.id)
 []
 
-> const softwareIdentity = await profile.createIdentity(0)
-> const hardwareIdentity = await profile.createIdentity(1)
+> const softwareIdentity = await profile.createIdentity(wallet.id, HdPaths.simpleAddress(0))
+> const hardwareIdentity = await profile.createIdentity(ledgerWallet.id, 0)
 
 > softwareIdentity.pubkey
 { algo: 'ed25519',
@@ -262,14 +262,14 @@ Do 1. and 2. like above
      84,
      114, ...
 
-> LedgerSimpleAddressKeyringEntry.registerWithKeyring()
+> LedgerSimpleAddressWallet.registerWithKeyring()
 > const db = levelup(leveldown('./my_userprofile_db'))
 > await profile.storeIn(db, "secret passwd")
 > const profileFromDb = await UserProfile.loadFrom(db, "secret passwd");
 > profileFromDb
 UserProfile {
   createdAt: 2018-08-02T16:25:38.274Z,
-  keyring: Keyring { entries: [ [Object], [Object] ] }, ...
+  keyring: Keyring { wallets: [ [Object], [Object] ] }, ...
 ```
 
 ## License

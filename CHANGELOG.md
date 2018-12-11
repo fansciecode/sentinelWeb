@@ -1,8 +1,157 @@
 # Changelog
 
-## 0.7.0 (not yet released)
+## 0.10.0
 
+* @iov/bcp-types: `BcpTransactionResponse` now contains a `blockInfo` property
+  that allows you to get block related data associated with the transactions
+  and subscribing to updates. `metadata` was deprecated in favour of `blockInfo`.
+* @iov/bcp-types: the new interfaces `getBlockHeader` and `watchBlockHeaders`
+  provide block header information.
+* @iov/bns: Fix encoding of `BcpTxQuery.hash` in `listenTx` and `liveTx`
+* @iov/stream: Add `toListPromise` that collects stream events and returns a
+  list when done.
+* @iov/stream: `ValueAndUpdates.waitFor` now returns the values that matched
+  the search condition.
+* @iov/stream: `DefaultValueProducerCallsbacks.error` added to produce errors.
+
+Breaking changes
+
+* @iov/base-types: Remove `TxId` in favour of `TxHash` in @iov/tendermint-rpc.
+* @iov/bcp-types: An `Amount` is now a `quantity` expressed as a string, a
+  `fractionalDigits` number and a `tokenTicker`. This replaces the `whole`,
+  `fractional` pair. `BcpTicker` does not contain `sigFigs` anymore because
+  it is not needed there. `BcpCoin` is now an `Amount` and a `BcpTicker`.
+* @iov/bcp-types: Wrapper type `BcpNonce` was dropped from all interfaces
+  in favour of just `Nonce`.
+* @iov/bcp-types: `BcpConnection.getNonce`/`.watchNonce` now only accept
+  `BcpAddressQuery` or `BcpPubkeyQuery` as argument type.
+* @iov/bcp-types: `BcpConnection.listenTx` now takes an `BcpTxQuery` argument
+  analogue to `.searchTx` and `.liveTx`.
+* @iov/bcp-types: `BcpTransactionResponse` was removed in favour of the new
+  `PostTxResponse`.
+* @iov/bcp-types: Change binary `TransactionIdBytes` to printable
+  `TransactionId` and use in `TxCodec.identifier`, `PostTxResponse` and
+  `BcpTxQuery`.
+* @iov/bcp-types: `BcpTxQuery.tags` is now optional
+* @iov/bns: `BnsConnection.postTx` now resolves before a transaction is in a
+  block. The field `blockInfo` of its response can be used to track the
+  transaction state.
+* @iov/bns: `getHeader`/`watchHeaders` were removed in favour of
+  `getBlockHeader`/`watchBlockHeaders` from BCP.
+* @iov/core: Rename `MultiChainSigner.signAndCommit` -> `.signAndPost`
+* @iov/crpto: the new types `Secp256k1Signature` and `ExtendedSecp256k1Signature` replace DER encoded signatures in `Secp256k1`.
+* @iov/faucets: Remove `BovFaucet`. Use `IovFaucet` instead.
+* @iov/keycontrol: `Secp256k1HdWallet.createTransactionSignature` now uses the custom fixed length encoding instead of DER to allow blockchains utilizing the recovery parameter.
+* @iov/stream: `streamPromise` was renamed to `fromListPromise`.
+* @iov/tendermint-rpc: Rename `txCommitSuccess` to `broadcastTxCommitSuccess` and add `broadcastTxSyncSuccess`
+* @iov/tendermint-rpc: Remove all fields from `BroadcastTxAsyncResponse`
+* @iov/tendermint-rpc: Change type of `BroadcastTxSyncResponse.hash` to `TxId`
+* @iov/tendermint-rpc: Un-export interface `RpcTxEvent`
+* @iov/tendermint-rpc: Change all `Method` enum names to PascalCase
+* @iov/tendermint-rpc: `Client.subscribeTx` now takes a `QueryString` argument
+
+## 0.9.3
+
+* @iov/bns: Add missing error propagation from `searchTx`/`listenTx` into `liveTx` stream.
+
+## 0.9.2
+
+* @iov/bns: Add `getHeader` and `watchHeaders` methods to access block headers
+
+## 0.9.1
+
+* @iov/stream: Generalize `streamPromise` to take a promise of an iterable
+* @iov/bns: Fix order of events in `listenTx`. All history tx events are now emitted before updates.
+
+## 0.9.0
+
+* @iov/core: Export `Secp256k1HdWallet` and import by default in @iov/cli.
+* @iov/faucets: Postpone removal of `BovFaucet` to 0.10.x
+
+Breaking changes
+
+* @iov/bcp-types: Rename `FungibleToken` to `Amount`
+* @iov/bns: Re-generate BNS codec from weave v0.9.0 and adapt wrapper types.
+* @iov/bns: Add support for blockchain and username NFTs
+* @iov/crypto: Convert pubkey of Secp256k1Keypair into uncompressed format with prefix `04`.
+* @iov/crypto: Secp256k1.createSignature/.verifySignature now comsume a message hash and do no hashing internally.
+* @iov/dpos: Rename `Amount`/`parseAmount` to `Quantity`/`parseQuantity`
+* @iov/keycontrol: Let `Secp256k1HdWallet` work on uncompressed pubkeys. Since `Secp256k1HdWallet`
+  was not used yet, there is no migration for existing `Secp256k1HdWallet`.
+* @iov/tendermint-types: Move types `PrivateKeyBundle`, `PrivateKeyBytes` into @iov/bns;
+  split `Tag` into `BcpQueryTag` in @iov/bcp-types and `QueryTag` in @iov/tendermint-rpc;
+  rename `TxQuery` into `BcpTxQuery` in @iov/bcp-types; make `SignatureBundle` available
+  in @iov/tendermint-rcp only and rename to `VoteSignatureBundle`; move `buildTxQuery` into @iov/bns.
+* @iov/tendermint-types: renamed to @iov/base-types
+
+## 0.8.1
+
+* @iov/dpos: Deduplicate `Serialization` from Lisk and RISE
+* @iov/keycontrol: Add `Wallet.printableSecret` and `UserProfile.printableSecret`
+* @iov/keycontrol: Add `HdPaths.bip44` and `HdPaths.metamaskHdKeyTree` HD path builders
+* @iov/tendermint-rpc: Ensure transaction search results are sorted by height
+
+## 0.8.0
+
+* @iov/dpos: Add new package with shared code for Lisk and RISE. Don't use this directly. No code change necessary for users of @iov/lisk and @iov/rise.
+* @iov/faucets: add `IovFaucet` to connect to the new faucet application
+* @iov/keycontrol: add format versioning to `Wallet`, `Keyring`, keyring encryption and `UserProfile`
+
+Deprecations
+
+* @iov/faucets: `BovFaucet` is deprecated and will be removed in 0.9. Migrate to the `IovFaucet`.
+
+Breaking changes
+
+* @iov/lisk: LiskConnection.postTx does not wait for block anymore (analogue to RiseConnection.postTx),
+  making it faster and more reliable. Transaction state tracking will improve in the future.
+* Due to updates in all serialization formats, UserProfiles stored with
+  earlier versions of IOV-Core cannot be opened with 0.8.0. To migrate to
+  the new version, extract the secret data using an older version and
+  create a new UserProfile in 0.8.0.
+
+## 0.7.1
+
+* @iov/lisk: Implement `LiskConnection.getTicker` and `.getAllTickers`
+* @iov/rise: Implement `RiseConnection.getTicker` and `.getAllTickers`
+
+## 0.7.0
+
+* @iov/bcp-types: optional field `expectedChainId` added to `ChainConnector`
+* @iov/bcp-types: `BcpConnection.getAccount` can now be called with a pubkey input
+* @iov/bcp-types: `TxReadCodec` and all its implementations now contain a `isValidAddress` method
+* @iov/core: `MultiChainSigner.addChain` now returns chain information of the chain added
 * @iov/lisk: new package to connect to the Lisk blockchain
+* @iov/rise: new package to connect to the RISE blockchain
+* @iov/encoding: bech32 encoding support for address bytes
+* @iov/keycontrol: `UserProfile.setEntry()` now returns `WalletInfo` of new wallet added, for ease of use
+
+Breaking changes
+
+* @iov/bcp-types: `Address` is now a `string` instead of an `Uint8Array`
+* @iov/bcp-types: `BcpTransactionResponse.metadata.success` was removed since failures are reported as promise rejections
+* @iov/bcp-types: `Nonce` is now implemented by `Int53` from @iov/encoding instead of `Long`
+* @iov/bns: `Client` was renamed to `BnsConnection`. The `connect()` function was renamed to `BnsConnection.establish()`
+* @iov/core: rename `IovWriter` to `MultiChainSigner`
+* @iov/core: rename the getter `reader` to `connection` in `MultiChainSigner`
+* @iov/faucets: `BovFaucet.credit` now expects an address in bech32 format
+* @iov/keycontrol: `Ed25519KeyringEntry` now takes a keypair as an argument in `createIdentity()`
+* @iov/keycontrol: `Ed25519SimpleAddressKeyringEntry` was removed in favour of `Ed25519HdWallet` together with `HdPaths.simpleAddress`
+* @iov/keycontrol: in `UserProfile`, `.entriesCount`, `.entryLabels` and `.entryIds` have been merged into `.wallets`
+* @iov/keycontrol: in `UserProfile`, `.setEntryLabel`, `.createIdentity`, `.setIdentityLabel`, `.getIdentities`, `.signTransaction`, `.appendSignature` now only accept string IDs for the entry/wallet argument
+* @iov/keycontrol: `DefaultValueProducer` and `ValueAndUpdates` moved into @iov/stream
+* @iov/keycontrol: `KeyringEntry.createIdentity` now takes a required options argument of type `Ed25519KeyringEntry | ReadonlyArray<Slip10RawIndex> | number`
+* @iov/keycontrol: rename symbols to `Wallet`, `WalletId`, `WalletImplementationIdString`, `WalletSerializationString`
+* @iov/keycontrol: rename `Ed25519KeyringEntry` to `Ed25519WalletId`
+* @iov/keycontrol: in `Keyring`, rename `.getEntries/.getEntryById` to `.getWallets/.getWallet`
+* @iov/keycontrol: in `Keyring`, remove obsolete `.getEntryByIndex`
+* @iov/keycontrol: in `UserProfile`, rename `.addEntry/.setEntryLabel` to `.addWallet/.setWalletLabel`
+* @iov/ledger-bns: in `LedgerSimpleAddressKeyringEntry`, `.createIdentity` takes an index argument
+* @iov/ledger-bns: rename `LedgerSimpleAddressKeyringEntry` to `LedgerSimpleAddressWallet`
+* Due to updates in the Keyring serialization, UserProfiles stored with
+  earlier versions of IOV-Core cannot be opened with 0.7.0. To migrate to
+  the new version, extract the secret data using an older version and
+  create a new UserProfile in 0.7.0.
 
 ## 0.6.1
 

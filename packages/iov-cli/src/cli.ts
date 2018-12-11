@@ -1,10 +1,12 @@
+// tslint:disable:no-console
 import { ArgumentParser } from "argparse";
+// tslint:disable-next-line:no-submodule-imports
 import colors = require("colors/safe");
 import { join } from "path";
 
 import { TsRepl } from "./tsrepl";
 
-export const main = (originalArgs: string[]): void => {
+export function main(originalArgs: ReadonlyArray<string>): void {
   const parser = new ArgumentParser({ description: "The IOV-Core REPL" });
   parser.addArgument("--version", {
     action: "storeTrue",
@@ -23,7 +25,7 @@ export const main = (originalArgs: string[]): void => {
     action: "storeTrue",
     help: "Enable debugging",
   });
-  const args = parser.parseArgs(originalArgs);
+  const args = parser.parseArgs([...originalArgs]);
 
   if (args.version) {
     const version = require(join(__dirname, "..", "package.json")).version;
@@ -47,18 +49,21 @@ export const main = (originalArgs: string[]): void => {
   console.log(colors.yellow("    - bnsConnector"));
   console.log(colors.yellow("    - bnsFromOrToTag"));
   console.log(colors.yellow("    - ChainId"));
-  console.log(colors.yellow("    - Ed25519SimpleAddressKeyringEntry"));
+  console.log(colors.yellow("    - Ed25519HdWallet"));
+  console.log(colors.yellow("    - HdPaths"));
   console.log(colors.yellow("    - Keyring"));
-  console.log(colors.yellow("    - KeyringEntry"));
-  console.log(colors.yellow("    - KeyringEntryImplementationIdString"));
-  console.log(colors.yellow("    - KeyringEntrySerializationString"));
+  console.log(colors.yellow("    - MultiChainSigner"));
   console.log(colors.yellow("    - Nonce"));
   console.log(colors.yellow("    - UserProfile"));
+  console.log(colors.yellow("    - Secp256k1HdWallet"));
   console.log(colors.yellow("    - SendTx"));
   console.log(colors.yellow("    - SetNameTx"));
   console.log(colors.yellow("    - TokenTicker"));
   console.log(colors.yellow("    - TransactionKind"));
-  console.log(colors.yellow("    - IovWriter"));
+  console.log(colors.yellow("    - Wallet"));
+  console.log(colors.yellow("    - WalletId"));
+  console.log(colors.yellow("    - WalletImplementationIdString"));
+  console.log(colors.yellow("    - WalletSerializationString"));
   console.log(colors.yellow("  * from @iov/crypto"));
   console.log(colors.yellow("    - Bip39"));
   console.log(colors.yellow("    - Ed25519"));
@@ -67,9 +72,10 @@ export const main = (originalArgs: string[]): void => {
   console.log(colors.yellow("    - Sha256"));
   console.log(colors.yellow("    - Sha512"));
   console.log(colors.yellow("  * from @iov/encoding"));
+  console.log(colors.yellow("    - Bech32"));
   console.log(colors.yellow("    - Encoding"));
   console.log(colors.yellow("  * from @iov/faucets"));
-  console.log(colors.yellow("    - BovFaucet"));
+  console.log(colors.yellow("    - IovFaucet"));
   console.log(colors.yellow("  * helper functions"));
   console.log(colors.yellow("    - toAscii"));
   console.log(colors.yellow("    - fromHex"));
@@ -86,23 +92,26 @@ export const main = (originalArgs: string[]): void => {
       bnsConnector,
       bnsFromOrToTag,
       ChainId,
-      Ed25519SimpleAddressKeyringEntry,
+      Ed25519HdWallet,
+      HdPaths,
       Keyring,
-      KeyringEntry,
-      KeyringEntryImplementationIdString,
-      KeyringEntrySerializationString,
+      MultiChainSigner,
       Nonce,
+      Secp256k1HdWallet,
       SendTx,
       SetNameTx,
       TokenTicker,
       TransactionKind,
       UserProfile,
-      IovWriter,
+      Wallet,
+      WalletId,
+      WalletImplementationIdString,
+      WalletSerializationString,
     } from "@iov/core";
     import { bnsCodec } from '@iov/bns';
     import { Bip39, Ed25519, Ed25519Keypair, Random, Sha256, Sha512 } from '@iov/crypto';
-    import { Encoding } from '@iov/encoding';
-    import { BovFaucet } from '@iov/faucets';
+    import { Bech32, Encoding } from '@iov/encoding';
+    import { IovFaucet } from '@iov/faucets';
     const { toAscii, fromHex, toHex } = Encoding;
   `;
 
@@ -123,4 +132,4 @@ export const main = (originalArgs: string[]): void => {
     console.error(error);
     process.exit(1);
   });
-};
+}

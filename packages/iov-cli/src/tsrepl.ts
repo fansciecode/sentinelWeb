@@ -1,14 +1,15 @@
+// tslint:disable:no-console
 import { diffLines } from "diff";
 import { join } from "path";
 import { Recoverable, REPLServer, start } from "repl";
 import { register, Register, TSError } from "ts-node";
-import { createContext, Context } from "vm";
+import { Context, createContext } from "vm";
 
-import { isRecoverable, executeJavaScriptAsync } from "./helpers";
+import { executeJavaScriptAsync, isRecoverable } from "./helpers";
 
 interface ReplEvalResult {
   readonly result: any;
-  readonly error: any;
+  readonly error: Error | null;
 }
 
 export class TsRepl {
@@ -19,13 +20,14 @@ export class TsRepl {
   private readonly evalData = { input: "", output: "" };
   private readonly resetToZero: () => void; // Bookmark to empty TS input
   private readonly initialTypeScript: string;
+  // tslint:disable-next-line:readonly-keyword
   private context: Context | undefined;
 
   constructor(
     tsconfigPath: string,
     initialTypeScript: string,
     debuggingEnabled: boolean = false,
-    installationDir: string | undefined = undefined, // required when the current working directory is not the installation path
+    installationDir?: string, // required when the current working directory is not the installation path
   ) {
     this.typeScriptService = register({
       project: tsconfigPath,
@@ -47,9 +49,11 @@ export class TsRepl {
      */
     const replEvalWrapper = async (
       code: string,
+      // tslint:disable-next-line:variable-name
       _context: any,
+      // tslint:disable-next-line:variable-name
       _filename: string,
-      callback: (err?: Error, result?: any) => any,
+      callback: (err: Error | null, result?: any) => any,
     ) => {
       const result = await this.replEval(code);
       callback(result.error, result.result);
@@ -66,8 +70,10 @@ export class TsRepl {
 
     // Prepare context for TypeScript: TypeScript compiler expects the exports shortcut
     // to exist in `Object.defineProperty(exports, "__esModule", { value: true });`
-    if (!repl.context.exports) {
-      repl.context.exports = repl.context.module.exports;
+    const unsafeReplContext = repl.context as any;
+    if (!unsafeReplContext.exports) {
+      // tslint:disable-next-line:no-object-mutation
+      unsafeReplContext.exports = unsafeReplContext.module.exports;
     }
 
     // REPL context is created with a default set of module resolution paths,
@@ -82,8 +88,10 @@ export class TsRepl {
     // However, this does not include the installation path of @iov/cli because
     // REPL does not inherit module paths from the current process. Thus we override
     // the repl paths with the current process' paths
-    repl.context.module.paths = module.paths;
+    // tslint:disable-next-line:no-object-mutation
+    unsafeReplContext.module.paths = module.paths;
 
+    // tslint:disable-next-line:no-object-mutation
     this.context = createContext(repl.context);
 
     const reset = async (): Promise<void> => {
@@ -148,13 +156,14 @@ export class TsRepl {
     if (isAutocompletionRequest) {
       undo();
     } else {
+      // tslint:disable-next-line:no-object-mutation
       this.evalData.output = output;
     }
 
     // Execute new JavaScript. This may not necessarily be at the end only because e.g. an import
     // statement in TypeScript is compiled to no JavaScript until the imported symbol is used
     // somewhere. This btw. leads to a different execution order of imports than in the TS source.
-    let lastResult: any = undefined;
+    let lastResult: any;
     for (const added of changes.filter(change => change.added)) {
       lastResult = await executeJavaScriptAsync(added.value, this.evalFilename, this.context!);
     }
@@ -169,7 +178,7 @@ export class TsRepl {
     if (code === ".scope") {
       return {
         result: undefined,
-        error: undefined,
+        error: null,
       };
     }
 
@@ -179,7 +188,7 @@ export class TsRepl {
       const result = await this.compileAndExecute(code, isAutocompletionRequest);
       return {
         result: result,
-        error: undefined,
+        error: null,
       };
     } catch (error) {
       if (this.debuggingEnabled) {
@@ -187,14 +196,14 @@ export class TsRepl {
         console.log(this.evalData.input);
       }
 
-      let outError: Error | undefined;
+      let outError: Error | null;
       if (error instanceof TSError) {
         // Support recoverable compilations using >= node 6.
         if (Recoverable && isRecoverable(error)) {
           outError = new Recoverable(error);
         } else {
           console.error(error.diagnosticText);
-          outError = undefined;
+          outError = null;
         }
       } else {
         outError = error;
@@ -217,13 +226,17 @@ export class TsRepl {
       /^\s*[\[\(\`]/.test(input) &&
       !/;\s*$/.test(oldInput)
     ) {
+      // tslint:disable-next-line:no-object-mutation
       this.evalData.input = `${this.evalData.input.slice(0, -1)};\n`;
     }
 
+    // tslint:disable-next-line:no-object-mutation
     this.evalData.input += input;
 
     const undoFunction = () => {
+      // tslint:disable-next-line:no-object-mutation
       this.evalData.input = oldInput;
+      // tslint:disable-next-line:no-object-mutation
       this.evalData.output = oldOutput;
     };
 

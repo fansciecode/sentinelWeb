@@ -1,6 +1,6 @@
 {
   "name": "@iov/core",
-  "version": "0.6.1",
+  "version": "0.9.3",
   "description": "Central entry point into iov core monorepo, pulling together all modules",
   "author": "IOV SAS <admin@iov.one>",
   "license": "Apache-2.0",
@@ -23,22 +23,19 @@
     "test-chrome": "yarn pack-web && karma start --single-run --browsers ChromeHeadless",
     "test-safari": "yarn pack-web && karma start --single-run --browsers Safari",
     "test": "yarn build-or-skip && yarn test-node",
-    "prebuild": "yarn format && yarn lint",
-    "preprocess-types": "shx rm -r ./types/*",
-    "postprocess-types": "shx rm ./types/*.spec.d.ts",
-    "build": "yarn preprocess-types && tsc --declarationDir ./types && yarn postprocess-types",
+    "prebuild": "yarn format",
+    "move-types": "shx rm -r ./types/* && shx mv build/types/* ./types && shx rm ./types/*.spec.d.ts",
+    "build": "shx rm -rf ./build && tsc && yarn move-types",
     "build-or-skip": "[ -n \"$SKIP_BUILD\" ] || yarn build",
-    "pack-web": "yarn build-or-skip && webpack --mode development --config webpack.web.config.js",
-    "pack-node": "yarn build-or-skip && webpack --mode development --config webpack.node.config.js"
+    "pack-web": "yarn build-or-skip && webpack --mode development --config webpack.web.config.js"
   },
   "dependencies": {
-    "@iov/bcp-types": "^0.6.1",
-    "@iov/bns": "^0.6.1",
-    "@iov/encoding": "^0.6.0",
-    "@iov/keycontrol": "^0.6.1",
-    "@iov/tendermint-types": "^0.6.0",
+    "@iov/base-types": "^0.9.0",
+    "@iov/bcp-types": "^0.9.0",
+    "@iov/bns": "^0.9.3",
+    "@iov/encoding": "^0.9.0",
+    "@iov/keycontrol": "^0.9.2",
     "@types/long": "^4.0.0",
     "long": "^4.0.0"
-  },
-  "gitHead": "39379b38f0ac128a48aa7174692c4c932ed326f7"
+  }
 }

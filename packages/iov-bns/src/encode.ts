@@ -1,6 +1,11 @@
+import { Algorithm, PublicKeyBundle, SignatureBytes } from "@iov/base-types";
 import {
+  AddAddressToUsernameTx,
+  Amount,
   FullSignature,
-  // PayVpnServiceTx,
+  RegisterBlockchainTx,
+  RegisterUsernameTx,
+  RemoveAddressFromUsernameTx,
   SendTx,
   SetNameTx,
   SignedTransaction,
@@ -11,29 +16,95 @@ import {
   TransactionKind,
   UnsignedTransaction,
 } from "@iov/bcp-types";
+import { Encoding, Int53 } from "@iov/encoding";
 
-import * as codecImpl from "./codecimpl";
-import {  encodeFullSig, encodeToken} from "./types";
-import { keyToAddress, preimageIdentifier } from "./util";
+import * as codecImpl from "./generated/codecimpl";
+import { PrivateKeyBundle } from "./types";
+import { decodeBnsAddress, keyToAddress, preimageIdentifier } from "./util";
 
-export const buildSignedTx = (tx: SignedTransaction): codecImpl.app.ITx => {
+const { toUtf8 } = Encoding;
+
+function encodeBoolean(value: boolean): true | undefined {
+  return value ? true : undefined;
+}
+
+function encodeInt(intNumber: number): number | null {
+  if (!Number.isInteger(intNumber)) {
+    throw new Error("Received some kind of number that can't be encoded.");
+  }
+
+  // use null instead of 0 to not encode zero fields
+  // for compatibility with golang encoder
+  return intNumber || null;
+}
+
+export function encodePubkey(publicKey: PublicKeyBundle): codecImpl.crypto.IPublicKey {
+  switch (publicKey.algo) {
+    case Algorithm.Ed25519:
+      return { ed25519: publicKey.data };
+    default:
+      throw new Error("unsupported algorithm: " + publicKey.algo);
+  }
+}
+
+export function encodePrivkey(privateKey: PrivateKeyBundle): codecImpl.crypto.IPrivateKey {
+  switch (privateKey.algo) {
+    case Algorithm.Ed25519:
+      return { ed25519: privateKey.data };
+    default:
+      throw new Error("unsupported algorithm: " + privateKey.algo);
+  }
+}
+
+export function encodeAmount(amount: Amount): codecImpl.x.ICoin {
+  if (amount.fractionalDigits !== 9) {
+    throw new Error(`Fractional digits must be 9 but was ${amount.fractionalDigits}`);
+  }
+
+  const whole = Int53.fromString(amount.quantity.slice(0, -amount.fractionalDigits) || "0");
+  const fractional = Int53.fromString(amount.quantity.slice(-amount.fractionalDigits) || "0");
+  return {
+    whole: encodeInt(whole.toNumber()),
+    fractional: encodeInt(fractional.toNumber()),
+    ticker: amount.tokenTicker,
+  };
+}
+
+function encodeSignature(algo: Algorithm, bytes: SignatureBytes): codecImpl.crypto.ISignature {
+  switch (algo) {
+    case Algorithm.Ed25519:
+      return { ed25519: bytes };
+    default:
+      throw new Error("unsupported algorithm: " + algo);
+  }
+}
+
+export function encodeFullSignature(fullSignature: FullSignature): codecImpl.sigs.IStdSignature {
+  return codecImpl.sigs.StdSignature.create({
+    sequence: fullSignature.nonce.toNumber(),
+    pubkey: encodePubkey(fullSignature.pubkey),
+    signature: encodeSignature(fullSignature.pubkey.algo, fullSignature.signature),
+  });
+}
+
+export function buildSignedTx(tx: SignedTransaction): codecImpl.app.ITx {
   const sigs: ReadonlyArray<FullSignature> = [tx.primarySignature, ...tx.otherSignatures];
   const built = buildUnsignedTx(tx.transaction);
-  return { ...built, signatures: sigs.map(encodeFullSig) };
-};
+  return { ...built, signatures: sigs.map(encodeFullSignature) };
+}
 
-export const buildUnsignedTx = (tx: UnsignedTransaction): codecImpl.app.ITx => {
+export function buildUnsignedTx(tx: UnsignedTransaction): codecImpl.app.ITx {
   const msg = buildMsg(tx);
   return codecImpl.app.Tx.create({
     ...msg,
-    fees: tx.fee ? { fees: encodeToken(tx.fee) } : null,
+    fees: tx.fee ? { fees: encodeAmount(tx.fee) } : null,
   });
-};
+}
 
-export const buildMsg = (tx: UnsignedTransaction): codecImpl.app.ITx => {
+export function buildMsg(tx: UnsignedTransaction): codecImpl.app.ITx {
   switch (tx.kind) {
-    // case TransactionKind.Sentinel:
-    //   return buildSentinelTx(tx);
+    case TransactionKind.AddAddressToUsername:
+      return buildAddAddressToUsernameTx(tx);
     case TransactionKind.Send:
       return buildSendTx(tx);
     case TransactionKind.SetName:
@@ -46,64 +117,138 @@ export const buildMsg = (tx: UnsignedTransaction): codecImpl.app.ITx => {
       return buildSwapClaimTx(tx);
     case TransactionKind.SwapTimeout:
       return buildSwapTimeoutTx(tx);
+    case TransactionKind.RegisterBlockchain:
+      return buildRegisterBlockchainTx(tx);
+    case TransactionKind.RegisterUsername:
+      return buildRegisterUsernameTx(tx);
+    case TransactionKind.RemoveAddressFromUsername:
+      return buildRemoveAddressFromUsernameTx(tx);
+    default:
+      throw new Error("Received transacion of unsupported kind.");
   }
+}
 
-};
-// Sentinel pay for vpn tx build 
+function buildAddAddressToUsernameTx(tx: AddAddressToUsernameTx): codecImpl.app.ITx {
+  return {
+    addUsernameAddressNftMsg: {
+      id: toUtf8(tx.username),
+      chainID: toUtf8(tx.payload.chainId),
+      address: toUtf8(tx.payload.address),
+    },
+  };
+}
 
-// const buildSentinelTx =(tx:PayVpnServiceTx): codecImpl.app.ITx =>({
-//  sendMsg: codecImpl.cash.SendMsg.create({
-//    src:keyToAddress(tx.signer),
-//    dest:tx.recipient,
-//    MsgData:tx.PayType,
-//    memo:tx.memo,
-//  })
-// });
-const buildSendTx = (tx: SendTx): codecImpl.app.ITx => ({
-  sendMsg: codecImpl.cash.SendMsg.create({
-    src: keyToAddress(tx.signer),
-    dest: tx.recipient,
-    amount: encodeToken(tx.amount),
-    memo: tx.memo,
-    msgData:tx.msgType,
-  }),
-});
+function buildSendTx(tx: SendTx): codecImpl.app.ITx {
+  return {
+    sendMsg: codecImpl.cash.SendMsg.create({
+      src: decodeBnsAddress(keyToAddress(tx.signer)).data,
+      dest: decodeBnsAddress(tx.recipient).data,
+      amount: encodeAmount(tx.amount),
+      memo: tx.memo,
+    }),
+  };
+}
 
-const buildSetNameTx = (tx: SetNameTx): codecImpl.app.ITx => ({
-  setNameMsg: codecImpl.namecoin.SetWalletNameMsg.create({
-    address: keyToAddress(tx.signer),
-    name: tx.name,
-  }),
-});
+function buildSetNameTx(tx: SetNameTx): codecImpl.app.ITx {
+  return {
+    setNameMsg: codecImpl.namecoin.SetWalletNameMsg.create({
+      address: decodeBnsAddress(keyToAddress(tx.signer)).data,
+      name: tx.name,
+    }),
+  };
+}
 
-const buildSwapOfferTx = (tx: SwapOfferTx): codecImpl.app.ITx => {
+function buildSwapOfferTx(tx: SwapOfferTx): codecImpl.app.ITx {
   const hashed = {
     ...tx,
     hashCode: preimageIdentifier(tx.preimage),
     kind: TransactionKind.SwapCounter,
   };
   return buildSwapCounterTx(hashed as SwapCounterTx);
-};
+}
 
-const buildSwapCounterTx = (tx: SwapCounterTx): codecImpl.app.ITx => ({
-  createEscrowMsg: codecImpl.escrow.CreateEscrowMsg.create({
-    sender: keyToAddress(tx.signer),
-    arbiter: tx.hashCode,
-    recipient: tx.recipient,
-    timeout: tx.timeout,
-    amount: tx.amount.map(encodeToken),
-  }),
-});
+function buildSwapCounterTx(tx: SwapCounterTx): codecImpl.app.ITx {
+  return {
+    createEscrowMsg: codecImpl.escrow.CreateEscrowMsg.create({
+      src: decodeBnsAddress(keyToAddress(tx.signer)).data,
+      arbiter: tx.hashCode,
+      recipient: decodeBnsAddress(tx.recipient).data,
+      amount: tx.amount.map(encodeAmount),
+      timeout: tx.timeout,
+      memo: tx.memo,
+    }),
+  };
+}
 
-const buildSwapClaimTx = (tx: SwapClaimTx): codecImpl.app.ITx => ({
-  releaseEscrowMsg: codecImpl.escrow.ReleaseEscrowMsg.create({
-    escrowId: tx.swapId,
-  }),
-  preimage: tx.preimage,
-});
+function buildSwapClaimTx(tx: SwapClaimTx): codecImpl.app.ITx {
+  return {
+    releaseEscrowMsg: codecImpl.escrow.ReleaseEscrowMsg.create({
+      escrowId: tx.swapId,
+    }),
+    preimage: tx.preimage,
+  };
+}
 
-const buildSwapTimeoutTx = (tx: SwapTimeoutTx): codecImpl.app.ITx => ({
-  returnEscrowMsg: codecImpl.escrow.ReturnEscrowMsg.create({
-    escrowId: tx.swapId,
-  }),
-});
+function buildSwapTimeoutTx(tx: SwapTimeoutTx): codecImpl.app.ITx {
+  return {
+    returnEscrowMsg: codecImpl.escrow.ReturnEscrowMsg.create({
+      escrowId: tx.swapId,
+    }),
+  };
+}
+
+function buildRegisterBlockchainTx(tx: RegisterBlockchainTx): codecImpl.app.ITx {
+  return {
+    issueBlockchainNftMsg: codecImpl.blockchain.IssueTokenMsg.create({
+      id: toUtf8(tx.chain.chainId),
+      owner: decodeBnsAddress(keyToAddress(tx.signer)).data,
+      approvals: undefined,
+      details: codecImpl.blockchain.TokenDetails.create({
+        chain: codecImpl.blockchain.Chain.create({
+          chainID: tx.chain.chainId,
+          name: tx.chain.name,
+          enabled: encodeBoolean(tx.chain.enabled),
+          production: encodeBoolean(tx.chain.production),
+          networkID: tx.chain.networkId,
+          mainTickerID: tx.chain.mainTickerId ? toUtf8(tx.chain.mainTickerId) : undefined,
+        }),
+        iov: codecImpl.blockchain.IOV.create({
+          codec: tx.codecName,
+          codecConfig: tx.codecConfig,
+        }),
+      }),
+    }),
+  };
+}
+
+function buildRegisterUsernameTx(tx: RegisterUsernameTx): codecImpl.app.ITx {
+  const chainAddresses = tx.addresses.map(
+    (pair): codecImpl.username.IChainAddress => {
+      return {
+        chainID: toUtf8(pair.chainId),
+        address: toUtf8(pair.address),
+      };
+    },
+  );
+
+  return {
+    issueUsernameNftMsg: codecImpl.username.IssueTokenMsg.create({
+      id: Encoding.toUtf8(tx.username),
+      owner: decodeBnsAddress(keyToAddress(tx.signer)).data,
+      approvals: undefined,
+      details: codecImpl.username.TokenDetails.create({
+        addresses: chainAddresses,
+      }),
+    }),
+  };
+}
+
+function buildRemoveAddressFromUsernameTx(tx: RemoveAddressFromUsernameTx): codecImpl.app.ITx {
+  return {
+    removeUsernameAddressMsg: {
+      id: toUtf8(tx.username),
+      chainID: toUtf8(tx.payload.chainId),
+      address: toUtf8(tx.payload.address),
+    },
+  };
+}

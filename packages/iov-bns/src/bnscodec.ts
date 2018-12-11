@@ -1,18 +1,19 @@
+import { ChainId, PostableBytes } from "@iov/base-types";
 import {
   Nonce,
   PrehashType,
   SignedTransaction,
   SigningJob,
-  TransactionIdBytes,
+  TransactionId,
   TxCodec,
   UnsignedTransaction,
 } from "@iov/bcp-types";
-import { ChainId, PostableBytes } from "@iov/tendermint-types";
+import { Encoding } from "@iov/encoding";
 
-import * as codecImpl from "./codecimpl";
 import { parseTx } from "./decode";
 import { buildSignedTx, buildUnsignedTx } from "./encode";
-import { appendSignBytes, keyToAddress, tendermintHash } from "./util";
+import * as codecImpl from "./generated/codecimpl";
+import { appendSignBytes, isValidAddress, keyToAddress, tendermintHash } from "./util";
 
 export const bnsCodec: TxCodec = {
   // these are the bytes we create to add a signature
@@ -34,9 +35,9 @@ export const bnsCodec: TxCodec = {
   },
 
   // identifier is usually some sort of hash of bytesToPost, chain-dependent
-  identifier: (tx: SignedTransaction): TransactionIdBytes => {
-    const post = bnsCodec.bytesToPost(tx);
-    return tendermintHash(post) as TransactionIdBytes;
+  identifier: (tx: SignedTransaction): TransactionId => {
+    const transactionBytes = bnsCodec.bytesToPost(tx);
+    return Encoding.toHex(tendermintHash(transactionBytes)).toUpperCase() as TransactionId;
   },
 
   // parseBytes will recover bytes from the blockchain into a format we can use
@@ -46,4 +47,5 @@ export const bnsCodec: TxCodec = {
   },
 
   keyToAddress: keyToAddress,
+  isValidAddress: isValidAddress,
 };

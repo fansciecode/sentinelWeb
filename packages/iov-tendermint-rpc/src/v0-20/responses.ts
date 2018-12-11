@@ -1,27 +1,25 @@
-import { Encoding } from "@iov/encoding";
 import {
   Algorithm,
   ChainId,
   PostableBytes,
   PublicKeyBundle,
   PublicKeyBytes,
-  SignatureBundle,
   SignatureBytes,
-  TxId,
-} from "@iov/tendermint-types";
+} from "@iov/base-types";
+import { Encoding } from "@iov/encoding";
 
-import { JsonRpcEvent, JsonRpcSuccess } from "../common";
+import { JsonRpcEvent, JsonRpcSuccess, TxHash } from "../common";
 import {
   Base64,
   Base64String,
   DateTime,
   DateTimeString,
   HexString,
+  Integer,
   IntegerString,
   IpPortString,
   may,
   optional,
-  parseInteger,
   required,
 } from "../encodings";
 import * as responses from "../responses";
@@ -133,7 +131,7 @@ export interface RpcAbciQueryResponse {
 const decodeAbciQuery = (data: RpcAbciQueryResponse): responses.AbciQueryResponse => ({
   key: Base64.decode(optional(data.key, "" as Base64String)),
   value: Base64.decode(optional(data.value, "" as Base64String)),
-  height: may(parseInteger, data.height),
+  height: may(Integer.parse, data.height),
   code: data.code,
   index: data.index,
   log: data.log,
@@ -189,7 +187,7 @@ export interface RpcBroadcastTxSyncResponse extends RpcTxData {
 }
 const decodeBroadcastTxSync = (data: RpcBroadcastTxSyncResponse): responses.BroadcastTxSyncResponse => ({
   ...decodeTxData(data),
-  hash: Encoding.fromHex(required(data.hash)),
+  hash: Encoding.fromHex(required(data.hash)) as TxHash,
 });
 
 export interface RpcBroadcastTxCommitResponse {
@@ -202,7 +200,7 @@ const decodeBroadcastTxCommit = (
   data: RpcBroadcastTxCommitResponse,
 ): responses.BroadcastTxCommitResponse => ({
   height: data.height,
-  hash: Encoding.fromHex(required(data.hash)) as TxId,
+  hash: Encoding.fromHex(required(data.hash)) as TxHash,
   checkTx: decodeTxData(required(data.check_tx)),
   deliverTx: may(decodeTxData, data.deliver_tx),
 });
@@ -267,7 +265,7 @@ const decodeTxResponse = (data: RpcTxResponse): responses.TxResponse => ({
   txResult: decodeTxData(required(data.tx_result)),
   height: required(data.height),
   index: required(data.index),
-  hash: Encoding.fromHex(required(data.hash)) as TxId,
+  hash: Encoding.fromHex(required(data.hash)) as TxHash,
   proof: may(decodeTxProof, data.proof),
 });
 
@@ -280,7 +278,7 @@ const decodeTxSearch = (data: RpcTxSearchResponse): responses.TxSearchResponse =
   txs: required(data.txs).map(decodeTxResponse),
 });
 
-export interface RpcTxEvent {
+interface RpcTxEvent {
   readonly tx: Base64String;
   readonly result: RpcTxData;
   readonly height: number;
@@ -610,7 +608,7 @@ const decodePubkey = (data: RpcPubkey): PublicKeyBundle => {
   if (data.type === "AC26791624DE60") {
     // go-amino special code
     return {
-      algo: Algorithm.ED25519,
+      algo: Algorithm.Ed25519,
       data: Base64.decode(required(data.value)) as PublicKeyBytes,
     };
   }
@@ -621,11 +619,11 @@ export interface RpcSignature {
   readonly type: string;
   readonly value: Base64String;
 }
-const decodeSignature = (data: RpcSignature): SignatureBundle => {
+const decodeSignature = (data: RpcSignature): responses.VoteSignatureBundle => {
   if (data.type === "6BF5903DA1DB28") {
     // go-amino special code
     return {
-      algo: Algorithm.ED25519,
+      algo: Algorithm.Ed25519,
       signature: Base64.decode(required(data.value)) as SignatureBytes,
     };
   }

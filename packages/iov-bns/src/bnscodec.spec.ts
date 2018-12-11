@@ -1,6 +1,6 @@
+import { PostableBytes } from "@iov/base-types";
 import { PrehashType, SignedTransaction } from "@iov/bcp-types";
 import { Ed25519, Sha512 } from "@iov/crypto";
-import { PostableBytes } from "@iov/tendermint-types";
 
 import { bnsCodec } from "./bnscodec";
 import {
@@ -36,9 +36,9 @@ describe("Check codec", () => {
     // it should validate
     switch (prehashType) {
       case PrehashType.Sha512:
-        const pubKey = sig.publicKey.data;
+        const pubkey = sig.pubkey.data;
         const prehash = new Sha512(bytes).digest();
-        const valid = await Ed25519.verifySignature(sig.signature, prehash, pubKey);
+        const valid = await Ed25519.verifySignature(sig.signature, prehash, pubkey);
         expect(valid).toEqual(true);
         break;
       default:
@@ -48,8 +48,7 @@ describe("Check codec", () => {
 
   it("generates transaction id", () => {
     const id = bnsCodec.identifier(signedTxJson);
-    expect(id).toBeTruthy();
-    expect(id.length).toBe(20);
+    expect(id).toMatch(/^[0-9A-F]{40}$/);
   });
 
   it("round trip works", () => {

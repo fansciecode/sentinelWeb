@@ -4,8 +4,8 @@
 
 @iov/core is the main entrypoint into the monorepo, exposing high-level functionality
 to easily build blockchain clients. It uses the keymanagement functionality of `UserProfile`,
-and the generic blockchain connection of `IovReader`, and pulls them together into one
-`IovWriter`, which can query state and sign transactions on multiple blockchains.
+and the generic blockchain connection of `BcpConnection`, and pulls them together into one
+`MultiChainSigner`, which can query state and sign transactions on multiple blockchains.
 The examples below show a basic usage of the core library. You may also want to experiment
 with [@iov/cli](https://github.com/iov-one/iov-core/blob/master/packages/iov-cli/README.md)
 as a developer tool to familiarize yourself with this functionality.
@@ -47,51 +47,53 @@ const mnemonic24 = Bip39.encode(entropy32).asString();
 console.log(mnemonic24);
 ```
 
-Create a new profile with two entries:
+Create a new profile with two wallets:
 
 ```ts
-import { Ed25519SimpleAddressKeyringEntry, UserProfile} from '@iov/keycontrol';
+import { Ed25519HdWallet, UserProfile } from '@iov/keycontrol';
 
 const profile = new UserProfile();
-profile.addEntry(Ed25519SimpleAddressKeyringEntry.fromMnemonic(mnemonic12));
-profile.addEntry(Ed25519SimpleAddressKeyringEntry.fromMnemonic(mnemonic24));
+const wallet1 = Ed25519HdWallet.fromMnemonic(mnemonic12);
+const wallet2 = Ed25519HdWallet.fromMnemonic(mnemonic24);
+profile.addWallet(wallet1);
+profile.addWallet(wallet2);
 ```
 
 Inspect the profile:
 
 ```ts
 // look at profile (value reads current state)
-console.log(profile.entriesCount.value);
-console.log(profile.entryLabels.value);
+console.log(profile.wallets.value);
 
 // listen to the profile (stream of updates, good for reactive UI)
-const sub = profile.entryLabels.updates.subscribe({ next: x => console.log(x) });
-profile.setEntryLabel(0, "12 words");
-profile.setEntryLabel(1, "24 words");
+const sub = profile.wallets.updates.subscribe({ next: wallets => console.log(wallets) });
+profile.setWalletLabel(wallet1.id, "12 words");
+profile.setWalletLabel(wallet2.id, "24 words");
 ```
 
-Create identies on the two keyring entries (argument is index of the entry):
+Create identies on the two wallets:
 
 ```ts
+import { HdPaths } from '@iov/keycontrol';
 import { Encoding } from '@iov/encoding';
 const { fromHex, toHex } = Encoding;
 
 // this creates two different public key identities, generated from the
 // first mnemonic using two different SLIP-0010 paths
-const id1a = await profile.createIdentity(0);
-const id1b = await profile.createIdentity(0);
+const id1a = await profile.createIdentity(wallet1.id, HdPaths.simpleAddress(0));
+const id1b = await profile.createIdentity(wallet1.id, HdPaths.simpleAddress(1));
 console.log(id1a);
 console.log(id1a.pubkey.algo, toHex(id1a.pubkey.data))
 console.log(id1b.pubkey.algo, toHex(id1b.pubkey.data))
 
 // this creates a different key from the second mnemonic,
 // this uses the same HD path as id1a, but different seed.
-const id2 = await profile.createIdentity(1);
+const id2 = await profile.createIdentity(wallet2.id, HdPaths.simpleAddress(0));
 console.log(id2.pubkey.algo, toHex(id2.pubkey.data));
 
 // we can also add labels to the individual identies
-profile.setIdentityLabel(0, id1a, 'main account');
-console.log(profile.getIdentities(0));
+profile.setIdentityLabel(wallet1.id, id1a, 'main account');
+console.log(profile.getIdentities(wallet1.id));
 ```
 
 Save and reload keyring:
@@ -115,8 +117,8 @@ await profile.storeIn(db, passphrase);
 const loaded = await UserProfile.loadFrom(db, passphrase);
 
 // and we have the same data
-console.log(loaded.entryLabels.value);
-const ids = profile.getIdentities(0);
+console.log(loaded.wallets.value);
+const ids = profile.getIdentities(loaded.wallets.value[0].id);
 console.log(ids);
 console.log(toHex(ids[0].pubkey.data));
 console.log(toHex(id1a.pubkey.data));
@@ -161,21 +163,21 @@ in the genesis file, by running `bov init IOV $ADDR`.
 Now, connect to the network:
 
 ```ts
-import { bnsConnector, IovWriter } from '@iov/core';
+import { bnsConnector, MultiChainSigner } from '@iov/core';
 
-const writer = new IovWriter(profile);
-await writer.addChain(bnsConnector('wss://bov.friendnet-fast.iov.one/'));
+const signer = new MultiChainSigner(profile);
+await signer.addChain(bnsConnector('wss://bov.friendnet-fast.iov.one/'));
 
-const chainId = writer.chainIds()[0];
+const chainId = signer.chainIds()[0];
 console.log(chainId); // is this what you got yourself?
 ```
 
 List the tickers on the network:
 
 ```ts
-const reader = writer.reader(chainId);
+const connection = signer.connection(chainId);
 
-const tickers = await reader.getAllTickers();
+const tickers = await connection.getAllTickers();
 console.log(tickers.data);
 ```
 
@@ -184,36 +186,36 @@ Query the testnet for some existing genesis accounts:
 ```ts
 // this is pulled from the genesis account
 import { Address } from "@iov/bcp-types"
-const bert = fromHex("e28ae9a6eb94fc88b73eb7cbd6b87bf93eb9bef0") as Address;
-const faucet = await reader.getAccount({ address: bert });
+const bert = "E28AE9A6EB94FC88B73EB7CBD6B87BF93EB9BEF0" as Address;
+const faucet = await connection.getAccount({ address: bert });
 console.log(faucet);
 console.log(faucet.data[0])
 
 // you can also query by registered name
-const byName = await reader.getAccount({ name: "bert" });
+const byName = await connection.getAccount({ name: "bert" });
 console.log(byName.data[0])
 ```
 
 If you are running the testnet faucet, just ask for some free money.
 
 ```ts
-import { BovFaucet } from "@iov/faucets";
+import { TokenTicker } from "@iov/bcp-types";
+import { IovFaucet } from "@iov/faucets";
 
-const faucet = new BovFaucet("https://faucet.friendnet-fast.iov.one/faucet");
-// You can request a given token, or omit second argument to get default
+const faucet = new IovFaucet("https://iov-faucet.yaknet.iov.one");
 await faucet.credit(addr, "IOV" as TokenTicker);
 ```
 
 Then query your account:
 
 ```ts
-const mine = await reader.getAccount({ address: addr });
+const mine = await connection.getAccount({ address: addr });
 console.log(mine); // should show non-empty array for data
 console.log(mine.data[0]);
 
 const addr2 = bnsCodec.keyToAddress(id2.pubkey);
 console.log(toHex(addr2));
-let yours = await reader.getAccount({ address: addr2 });
+let yours = await connection.getAccount({ address: addr2 });
 console.log(yours); // should show empty array for data
 ```
 
@@ -236,17 +238,17 @@ const sendTx: SendTx = {
 };
 
 // the signer has a 0 nonce
-console.log(await writer.getNonce(chainId, addr))
+console.log(await signer.getNonce(chainId, addr))
 
 // we must have the private key for the signer (id1a)
-// second argument (0) is the keyring entry where the private key can be found
-await writer.signAndCommit(sendTx, 0);
+// second argument is the ID of the wallet where the private key can be found
+await signer.signAndPost(sendTx, wallet1.id);
 
 // note that the nonce of the signer is incremented
-console.log(await writer.getNonce(chainId, addr))
+console.log(await signer.getNonce(chainId, addr))
 
 // and we have a balance on the recipient now
-yours = await reader.getAccount({ address: addr2 });
+yours = await connection.getAccount({ address: addr2 });
 console.log(yours); // should show non-empty array for data
 console.log(yours.data[0]); // should show non-empty array for data
 ```
@@ -254,7 +256,7 @@ console.log(yours.data[0]); // should show non-empty array for data
 Now, query the transaction history:
 
 ```ts
-const history = await reader.searchTx({ tags: [bnsFromOrToTag(addr2)] }));
+const history = await connection.searchTx({ tags: [bnsFromOrToTag(addr2)] }));
 console.log(history);
 const first = history[0].transaction as SendTx;
 console.log(first.amount);

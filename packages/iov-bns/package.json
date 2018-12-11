@@ -1,6 +1,6 @@
 {
   "name": "@iov/bns",
-  "version": "0.6.1",
+  "version": "0.9.3",
   "description": "Transaction codec and BCP client to communicate with BNS blockchain",
   "author": "IOV SAS <admin@iov.one>",
   "license": "Apache-2.0",
@@ -23,31 +23,34 @@
     "test-chrome": "yarn pack-web && karma start --single-run --browsers ChromeHeadless",
     "test-safari": "yarn pack-web && karma start --single-run --browsers Safari",
     "test": "yarn build-or-skip && yarn test-node",
-    "prebuild": "yarn format && yarn lint",
-    "move-types": "shx rm ./types/* && shx mv build/*.d.ts ./types && shx rm ./types/*.spec.d.ts",
-    "build": "shx rm -rf ./build && tsc && shx cp ./src/codecimpl.js ./src/codecimpl.d.ts ./build && yarn move-types",
+    "prebuild": "yarn format",
+    "move-types": "shx rm -r ./types/* && shx mv build/types/* ./types && shx rm ./types/*.spec.d.ts",
+    "build": "shx rm -rf ./build && tsc && shx mkdir -p build/generated && shx cp ./src/generated/*.js ./build/generated && shx mkdir -p ./build/types/generated && shx cp ./src/generated/*.d.ts ./build/types/generated && yarn move-types",
     "build-or-skip": "[ -n \"$SKIP_BUILD\" ] || yarn build",
     "pack-web": "yarn build-or-skip && webpack --mode development --config webpack.web.config.js",
-    "find-proto": "find $GOPATH/src/github.com/confio/weave $GOPATH/src/github.com/iov-one/bcp-demo -name '*.proto' -not -path '*/vendor/*' -not -path '*/examples/*'",
-    "pack-proto": "yarn run pbjs -t static-module -w commonjs -o src/codecimpl.js",
-    "define-proto": "yarn run pbts src/codecimpl.js -o src/codecimpl.d.ts",
-    "protoc": "yarn pack-proto `yarn run -s find-proto` && yarn define-proto && yarn format"
+    "find-proto": "find ./weave -name '*.proto' -not -path '*/vendor/*' -not -path '*/examples/*' -not -path '*/cmd/bcpd/*'",
+    "pack-proto": "pbjs -t static-module -w commonjs -o src/generated/codecimpl.js `yarn -s find-proto`",
+    "define-proto": "pbts src/generated/codecimpl.js -o src/generated/codecimpl.d.ts",
+    "store-codec-version": "git -C ./weave log --pretty=oneline --decorate --max-count=1 > src/generated/codec_version.txt",
+    "protoc": "./scripts/weave.sh && yarn pack-proto && yarn define-proto && yarn format && yarn store-codec-version"
   },
   "dependencies": {
-    "@iov/bcp-types": "^0.6.1",
-    "@iov/crypto": "^0.6.1",
-    "@iov/encoding": "^0.6.0",
-    "@iov/stream": "^0.6.0",
-    "@iov/tendermint-rpc": "^0.6.1",
-    "@iov/tendermint-types": "^0.6.0",
+    "@iov/base-types": "^0.9.0",
+    "@iov/bcp-types": "^0.9.0",
+    "@iov/crypto": "^0.9.1",
+    "@iov/encoding": "^0.9.0",
+    "@iov/stream": "^0.9.2",
+    "@iov/tendermint-rpc": "^0.9.1",
     "@types/long": "^4.0.0",
     "@types/node": "^10.3.2",
+    "bn.js": "^4.11.8",
+    "fast-deep-equal": "^2.0.1",
     "long": "^4.0.0",
     "protobufjs": "^6.8.6",
+    "type-tagger": "^1.0.0",
     "xstream": "^11.7.0"
   },
   "devDependencies": {
-    "@iov/keycontrol": "^0.6.1"
-  },
-  "gitHead": "39379b38f0ac128a48aa7174692c4c932ed326f7"
+    "@iov/keycontrol": "^0.9.2"
+  }
 }

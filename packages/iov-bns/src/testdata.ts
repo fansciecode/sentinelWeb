@@ -1,9 +1,8 @@
-import Long from "long";
-
+import { Algorithm, ChainId, PublicKeyBundle, PublicKeyBytes, SignatureBytes } from "@iov/base-types";
 import {
   Address,
+  Amount,
   FullSignature,
-  FungibleToken,
   Nonce,
   SendTx,
   SetNameTx,
@@ -15,17 +14,9 @@ import {
   TokenTicker,
   TransactionKind,
 } from "@iov/bcp-types";
-import { Encoding } from "@iov/encoding";
-import {
-  Algorithm,
-  ChainId,
-  PrivateKeyBundle,
-  PrivateKeyBytes,
-  PublicKeyBundle,
-  PublicKeyBytes,
-  SignatureBytes,
-} from "@iov/tendermint-types";
+import { Encoding, Int53 } from "@iov/encoding";
 
+import { PrivateKeyBundle, PrivateKeyBytes } from "./types";
 import { hashId } from "./util";
 
 const { fromHex } = Encoding;
@@ -38,14 +29,14 @@ const { fromHex } = Encoding;
 // in this testfile to allow simpler tests in the browser as well.
 
 export const pubJson: PublicKeyBundle = {
-  algo: Algorithm.ED25519,
+  algo: Algorithm.Ed25519,
   data: fromHex("507629b5f1d3946efb8fde961e146359e33610fa1536185d44fdd5011ca011d5") as PublicKeyBytes,
 };
 export const pubBin = fromHex("0a20507629b5f1d3946efb8fde961e146359e33610fa1536185d44fdd5011ca011d5");
 
 // this private key matches the above public key
 export const privJson: PrivateKeyBundle = {
-  algo: Algorithm.ED25519,
+  algo: Algorithm.Ed25519,
   data: fromHex(
     "516e6af7454f31fa56a43d112ea847c7e5aeea754f08385ca55935757161ad96507629b5f1d3946efb8fde961e146359e33610fa1536185d44fdd5011ca011d5",
   ) as PrivateKeyBytes,
@@ -55,27 +46,31 @@ export const privBin = fromHex(
 );
 
 // address is calculated by bov for the public key
-export const address = fromHex("acc00b8f2e26fd093894c5b1d87e03afab71cf99") as Address;
+// address generated using https://github.com/nym-zone/bech32
+// bech32 -e -h tiov acc00b8f2e26fd093894c5b1d87e03afab71cf99
+export const address = "tiov14nqqhrewym7sjwy5ckcaslsr474hrnuek3vnr4" as Address;
 
-export const coinJson: FungibleToken = {
-  whole: 878,
-  fractional: 1567000,
+export const coinJson: Amount = {
+  quantity: "878001567000",
+  fractionalDigits: 9,
   tokenTicker: "IOV" as TokenTicker,
 };
 export const coinBin = fromHex("08ee061098d25f1a03494f56");
 
-const amount = {
-  whole: 250,
-  fractional: 0,
+const amount: Amount = {
+  quantity: "250000000000",
+  fractionalDigits: 9,
   tokenTicker: "ETH" as TokenTicker,
 };
 export const chainId = "test-123" as ChainId;
 // the sender in this tx is the above pubkey, pubkey->address should match
+// recipient address generated using https://github.com/nym-zone/bech32
+// bech32 -e -h tiov 6f0a3e37845b6a3c8ccbe6219199abc3ae0b26d9
 export const sendTxJson: SendTx = {
   chainId,
   signer: pubJson,
   kind: TransactionKind.Send,
-  recipient: fromHex("6f0a3e37845b6a3c8ccbe6219199abc3ae0b26d9") as Address,
+  recipient: "tiov1du9ruduytd4rerxtucserxdtcwhqkfkezjy4w0" as Address,
   memo: "Test payment",
   amount,
 };
@@ -87,8 +82,8 @@ export const signBytes = fromHex(
   "00cafe0008746573742d31323300000000000000110a440a14acc00b8f2e26fd093894c5b1d87e03afab71cf9912146f0a3e37845b6a3c8ccbe6219199abc3ae0b26d91a0808fa011a03455448220c54657374207061796d656e74",
 );
 export const sig: FullSignature = {
-  nonce: Long.fromInt(17) as Nonce,
-  publicKey: pubJson,
+  nonce: new Int53(17) as Nonce,
+  pubkey: pubJson,
   signature: fromHex(
     "8005d615d1866b8349b8fe1901444b5f76cfd39482d51556066e5de4a281b0394aa2bc9e07580d0a67fd36183b47f2f1b044c0ce459140f493c6e95546715003",
   ) as SignatureBytes,
@@ -111,26 +106,28 @@ export const signedTxBin = fromHex(
 // but we just want to ensure that all fields can be writen and
 // read back the same
 const sig2: FullSignature = {
-  nonce: Long.fromInt(18) as Nonce,
-  publicKey: pubJson,
+  nonce: new Int53(18) as Nonce,
+  pubkey: pubJson,
   signature: fromHex(
     "baddad00cafe00bece8675da9d005f2018b69820673d57f5500ae2728d3e5012a44c786133cd911cc40761cda9ccf9094c1bbe1dc11f2d568cc4998072819a0c",
   ) as SignatureBytes,
 };
+// recipient address generated using https://github.com/nym-zone/bech32
+// bech32 -e -h tiov 009985cb38847474fe9febfd56ab67e14bcd56f3
 const randomMsg: SendTx = {
   chainId: "foo-bar-baz" as ChainId,
   signer: pubJson,
   kind: TransactionKind.Send,
-  recipient: fromHex("009985cb38847474fe9febfd56ab67e14bcd56f3") as Address,
+  recipient: "tiov1qzvctjecs368fl5la074d2m8u99u64hn8q7kyn" as Address,
   memo: "One more fix!",
   amount: {
-    whole: 128,
-    fractional: 79890911,
+    quantity: "128079890911",
+    fractionalDigits: 9,
     tokenTicker: "FOO" as TokenTicker,
   },
   fee: {
-    whole: 0,
-    fractional: 5432,
+    quantity: "5432",
+    fractionalDigits: 9,
     tokenTicker: "PSQL" as TokenTicker,
   },
 };
@@ -153,16 +150,18 @@ export const setNameTxJson: SignedTransaction = {
 };
 
 export const hashCode = Uint8Array.from([...hashId, ...fromHex("1122334455aabbccddee")]);
+// recipient address generated using https://github.com/nym-zone/bech32
+// bech32 -e -h tiov 123485cb38847474fe9febfd56ab67e14bcd56f3
 const swapCounterMsg: SwapCounterTx = {
   chainId: "swap-a-doo" as ChainId,
   signer: pubJson,
   kind: TransactionKind.SwapCounter,
-  recipient: fromHex("123485cb38847474fe9febfd56ab67e14bcd56f3") as Address,
+  recipient: "tiov1zg6gtjecs368fl5la074d2m8u99u64hnhhlprg" as Address,
   timeout: 7890,
   amount: [
     {
-      whole: 128,
-      fractional: 79890911,
+      quantity: "128079890911",
+      fractionalDigits: 9,
       tokenTicker: "FOO" as TokenTicker,
     },
   ],

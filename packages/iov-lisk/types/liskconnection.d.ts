@@ -1,6 +1,6 @@
 import { Stream } from "xstream";
-import { BcpAccount, BcpAccountQuery, BcpConnection, BcpNonce, BcpQueryEnvelope, BcpTicker, BcpTransactionResponse, ConfirmedTransaction, Nonce, TokenTicker } from "@iov/bcp-types";
-import { ChainId, PostableBytes, Tag, TxQuery } from "@iov/tendermint-types";
+import { ChainId, PostableBytes } from "@iov/base-types";
+import { BcpAccount, BcpAccountQuery, BcpAddressQuery, BcpConnection, BcpPubkeyQuery, BcpQueryEnvelope, BcpTicker, BcpTxQuery, BlockHeader, ConfirmedTransaction, Nonce, PostTxResponse, TokenTicker } from "@iov/bcp-types";
 /**
  * Encodes the current date and time as a nonce
  */
@@ -13,15 +13,18 @@ export declare class LiskConnection implements BcpConnection {
     disconnect(): void;
     chainId(): ChainId;
     height(): Promise<number>;
-    postTx(bytes: PostableBytes): Promise<BcpTransactionResponse>;
-    getTicker(_: TokenTicker): Promise<BcpQueryEnvelope<BcpTicker>>;
+    postTx(bytes: PostableBytes): Promise<PostTxResponse>;
+    getTicker(searchTicker: TokenTicker): Promise<BcpQueryEnvelope<BcpTicker>>;
     getAllTickers(): Promise<BcpQueryEnvelope<BcpTicker>>;
     getAccount(query: BcpAccountQuery): Promise<BcpQueryEnvelope<BcpAccount>>;
-    getNonce(query: BcpAccountQuery): Promise<BcpQueryEnvelope<BcpNonce>>;
-    changeBlock(): Stream<number>;
+    getNonce(_: BcpAddressQuery | BcpPubkeyQuery): Promise<BcpQueryEnvelope<Nonce>>;
     watchAccount(_: BcpAccountQuery): Stream<BcpAccount | undefined>;
-    watchNonce(_: BcpAccountQuery): Stream<BcpNonce | undefined>;
-    searchTx(_: TxQuery): Promise<ReadonlyArray<ConfirmedTransaction>>;
-    listenTx(_: ReadonlyArray<Tag>): Stream<ConfirmedTransaction>;
-    liveTx(_: TxQuery): Stream<ConfirmedTransaction>;
+    watchNonce(_: BcpAddressQuery | BcpPubkeyQuery): Stream<Nonce | undefined>;
+    getBlockHeader(height: number): Promise<BlockHeader>;
+    watchBlockHeaders(): Stream<BlockHeader>;
+    /** @deprecated use watchBlockHeaders().map(header => header.height) */
+    changeBlock(): Stream<number>;
+    searchTx(query: BcpTxQuery): Promise<ReadonlyArray<ConfirmedTransaction>>;
+    listenTx(_: BcpTxQuery): Stream<ConfirmedTransaction>;
+    liveTx(_: BcpTxQuery): Stream<ConfirmedTransaction>;
 }
