@@ -1,9 +1,9 @@
 import { bnsConnector, IovWriter } from '@iov/core';
-import { Profile } from "./Wallet";
+import { Walletprofile } from "./Wallet";
 
 
 export const signer = () => {
-    const Signer = new IovWriter(Profile);
+    const Signer = new IovWriter(Walletprofile);
     AddChain(Signer);
     return {
         Signer :Signer,

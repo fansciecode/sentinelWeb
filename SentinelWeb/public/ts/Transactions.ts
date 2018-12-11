@@ -22,10 +22,10 @@ import {address}from "./Codec";
 
 import { chainId, signer } from "./Network";
 
+import {Walletprofile} from "./Wallet";
 
 
-
-export const DeleteMasternode = (data:DeleteMasterNode ):DeleteMasterNode => {
+export const DeleteMasternode = (data:DeleteMasterNode ):any => {
   return {
     address: data.address,
     name: data.name,
@@ -33,7 +33,7 @@ export const DeleteMasternode = (data:DeleteMasterNode ):DeleteMasterNode => {
     gas: data.gas
   };
 };
-export const DeleteVpnuser  = (data: DeleteVpnUser):DeleteVpnUser=> {
+export const DeleteVpnuser  = (data: DeleteVpnUser):any=> {
   return {
     address: data.address,
     name: data.name,
@@ -41,7 +41,7 @@ export const DeleteVpnuser  = (data: DeleteVpnUser):DeleteVpnUser=> {
     gas: data.gas
   };
 };
-export const SessionObj  = (data: SentSession):SentSession => {
+export const SessionObj  = (data: SentSession):any => {
   return {
     LockedCoins: data.LockedCoins,
     ReleasedCoins: data.ReleasedCoins,
@@ -60,7 +60,7 @@ export const Sessionid  = (data: SentSession) => {
     SessionID: counter+pubkey 
   }
 };
-export const GetVpnpayment  = (data: GetVpnPayment) :GetVpnPayment=> {
+export const GetVpnpayment  = (data: GetVpnPayment) :any=> {
   return {
     coins: data.coins,
     SessionId: data.SessionId,
@@ -72,7 +72,7 @@ export const GetVpnpayment  = (data: GetVpnPayment) :GetVpnPayment=> {
     Signature: data.Signature
   };
 };
-export const PayVpnservice = (data: PayVpnService):PayVpnService => {
+export const PayVpnservice = (data: PayVpnService):any => {
   return {
     coins: data.coins,
     Vpnaddr: data.Vpnaddr,
@@ -83,7 +83,7 @@ export const PayVpnservice = (data: PayVpnService):PayVpnService => {
     SigPassword: data.SigPassword
   };
 };
-export const RegistermasterNode = (data: RegisterMasterNode):RegisterMasterNode => {
+export const RegistermasterNode = (data: RegisterMasterNode):any => {
   return {
     name: data.name,
     gas: data.gas,
@@ -91,7 +91,7 @@ export const RegistermasterNode = (data: RegisterMasterNode):RegisterMasterNode 
   };
 };
 
-export const Registervpn  = (data:RegisterVpn ):RegisterVpn => {
+export const Registervpn  = (data:RegisterVpn ):any => {
   return {
     Ip: data.Ip,
     UploadSpeed: data.UploadSpeed,
@@ -145,7 +145,8 @@ export const SendTransaction = async  (Recipient: Address, memo: string, Token: 
 
   };
   console.log(await signer().Signer.getNonce(chainId, address));
-  await signer().Signer.signAndCommit(sendTx, Profile.wallet1.id);
+  const walltId=  Walletprofile().Profile;
+  await signer().Signer.signAndCommit(sendTx, walltId);
   console.log(await signer().Signer.getNonce(chainId, address));
 
 };
